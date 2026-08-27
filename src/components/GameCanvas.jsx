@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { VIRTUAL_W, VIRTUAL_H } from '../game/engine.js'
-import { Phase1GameEngine } from '../game/phase1Engine.js'
+import { Phase1_5GameEngine } from '../game/phase1_5Engine.js'
 import { render } from '../game/renderer.js'
 import Joystick from './Joystick.jsx'
 import HUD from './HUD.jsx'
@@ -52,7 +52,7 @@ export default function GameCanvas() {
   }, [])
 
   const beginGame = useCallback(() => {
-    const engine = new Phase1GameEngine({
+    const engine = new Phase1_5GameEngine({
       onHud: (data) => {
         const now = performance.now()
         if (now - lastHudUpdate.current > HUD_UPDATE_INTERVAL) {
@@ -82,21 +82,14 @@ export default function GameCanvas() {
     }
   }, [startRenderLoop])
 
-  const handleMove = useCallback((x, y) => {
-    if (engineRef.current) engineRef.current.setMove(x, y)
-  }, [])
-
+  const handleMove = useCallback((x, y) => { if (engineRef.current) engineRef.current.setMove(x, y) }, [])
   const handleAim = useCallback((x, y) => {
     const engine = engineRef.current
     if (!engine) return
     engine.setAim(x, y)
     engine.setShootHeld(Math.hypot(x, y) > 0.25)
   }, [])
-
-  const handleDodge = useCallback(() => {
-    if (engineRef.current) engineRef.current.requestDodge()
-  }, [])
-
+  const handleDodge = useCallback(() => { if (engineRef.current) engineRef.current.requestDodge() }, [])
   const handleWeaponSwitch = useCallback(() => {
     setWeaponState((prev) => {
       const currentIndex = WEAPON_ORDER.indexOf(prev)
@@ -105,51 +98,28 @@ export default function GameCanvas() {
       return next
     })
   }, [])
-
-  const handleUseSkill = useCallback((key) => {
-    if (engineRef.current) engineRef.current.useSkill(key)
-  }, [])
-
+  const handleUseSkill = useCallback((key) => { if (engineRef.current) engineRef.current.useSkill(key) }, [])
   const handleRestart = useCallback(() => {
     if (engineRef.current) engineRef.current.stop()
     engineRef.current = null
     beginGame()
   }, [beginGame])
-
-  const handlePause = useCallback(() => {
-    if (engineRef.current) engineRef.current.stop()
-    setPaused(true)
-  }, [])
-
-  const handleResume = useCallback(() => {
-    if (engineRef.current) engineRef.current.start()
-    setPaused(false)
-  }, [])
-
+  const handlePause = useCallback(() => { if (engineRef.current) engineRef.current.stop(); setPaused(true) }, [])
+  const handleResume = useCallback(() => { if (engineRef.current) engineRef.current.start(); setPaused(false) }, [])
   const handleQuitToMenu = useCallback(() => {
     if (engineRef.current) engineRef.current.stop()
     engineRef.current = null
     setPaused(false)
     setPhase('start')
   }, [])
-
-  const handleEquip = useCallback((itemId) => {
-    if (engineRef.current) engineRef.current.equipItem(itemId)
-    setOverlayTick((t) => t + 1)
-  }, [])
-
-  const handleUnequip = useCallback((slot) => {
-    if (engineRef.current) engineRef.current.unequipItem(slot)
-    setOverlayTick((t) => t + 1)
-  }, [])
-
+  const handleEquip = useCallback((itemId) => { if (engineRef.current) engineRef.current.equipItem(itemId); setOverlayTick((t) => t + 1) }, [])
+  const handleUnequip = useCallback((slot) => { if (engineRef.current) engineRef.current.unequipItem(slot); setOverlayTick((t) => t + 1) }, [])
   const handleForge = useCallback((itemId) => {
     if (!engineRef.current) return null
     const result = engineRef.current.forgeItem(itemId)
     setOverlayTick((t) => t + 1)
     return result
   }, [])
-
   const handleBuyShopItem = useCallback((slotIndex) => {
     if (!engineRef.current) return null
     const result = engineRef.current.buyShopItem(slotIndex)
@@ -162,37 +132,17 @@ export default function GameCanvas() {
   return (
     <div className="game-root">
       <canvas ref={canvasRef} width={VIRTUAL_W} height={VIRTUAL_H} className="game-canvas" />
-
       {phase === 'playing' && damageNumbers.map((n, index) => (
-        <div
-          key={`${index}-${n.x}-${n.y}-${n.life}`}
-          style={{
-            position: 'absolute',
-            left: `${(n.x / VIRTUAL_W) * 100}%`,
-            top: `${(n.y / VIRTUAL_H) * 100}%`,
-            transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none',
-            zIndex: 8,
-            fontWeight: 900,
-            fontSize: n.crit ? '18px' : '14px',
-            lineHeight: 1,
-            color: n.crit ? '#ffd34d' : '#ffffff',
-            textShadow: '2px 2px 0 #111, -1px -1px 0 #111',
-            opacity: Math.min(1, n.life / 0.18),
-          }}
-        >
+        <div key={`${index}-${n.x}-${n.y}-${n.life}`} style={{ position: 'absolute', left: `${(n.x / VIRTUAL_W) * 100}%`, top: `${(n.y / VIRTUAL_H) * 100}%`, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 8, fontWeight: 900, fontSize: n.crit ? '18px' : '14px', lineHeight: 1, color: n.crit ? '#ffd34d' : '#ffffff', textShadow: '2px 2px 0 #111, -1px -1px 0 #111', opacity: Math.min(1, n.life / 0.18) }}>
           {n.crit ? `CRIT ${n.value}` : n.value}
         </div>
       ))}
-
       {phase === 'playing' && hud.combo > 1 && (
         <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 7, fontWeight: 900, fontSize: '18px', color: '#ffd34d', textShadow: '2px 2px 0 #111' }}>
           {hud.combo} HIT COMBO
         </div>
       )}
-
       {phase === 'playing' && <HUD {...hud} onPause={handlePause} />}
-
       {phase === 'playing' && (
         <div className="controls">
           <Joystick onChange={handleMove} />
@@ -208,12 +158,9 @@ export default function GameCanvas() {
             </button>
           </div>
           <button className={`dodge-btn ${hud.dodgeReady ? '' : 'dodge-btn-cooldown'}`} onTouchStart={(e) => { e.preventDefault(); handleDodge() }} onMouseDown={handleDodge}>DODGE</button>
-          <button className="weapon-btn" onTouchStart={(e) => { e.preventDefault(); handleWeaponSwitch() }} onMouseDown={handleWeaponSwitch}>
-            {hud.weapon || weapon.toUpperCase()}
-          </button>
+          <button className="weapon-btn" onTouchStart={(e) => { e.preventDefault(); handleWeaponSwitch() }} onMouseDown={handleWeaponSwitch}>{hud.weapon || weapon.toUpperCase()}</button>
         </div>
       )}
-
       {phase === 'playing' && paused && engineRef.current && (
         <InventoryOverlay
           stats={{ level: engineRef.current.player.level, gold: engineRef.current.player.gold, attackMultiplier: engineRef.current.player.attackMultiplier, defense: engineRef.current.player.defense, maxHp: engineRef.current.player.maxHp }}
@@ -228,7 +175,6 @@ export default function GameCanvas() {
           onBuyShopItem={handleBuyShopItem}
         />
       )}
-
       {phase === 'start' && <StartScreen onStart={beginGame} autoAim={autoAim} onToggleAutoAim={() => setAutoAim((v) => !v)} />}
       {phase === 'gameover' && <GameOverScreen score={finalStats.score} wave={finalStats.wave} onRestart={handleRestart} />}
     </div>
