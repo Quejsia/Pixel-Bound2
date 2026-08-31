@@ -1,8 +1,9 @@
+import './settings.css'
+
 export default function SettingsOverlay({ settings, onChange, onBack }) {
   return (
     <div className="overlay settings-overlay">
       <h2 className="title inventory-title">SETTINGS</h2>
-
       <div className="settings-list">
         <div className="settings-row">
           <div><strong>Sound Effects</strong><span>Shots, hits, pickups and abilities</span></div>
@@ -21,7 +22,6 @@ export default function SettingsOverlay({ settings, onChange, onBack }) {
           <b>{settings.autoAim ? 'ON' : 'OFF'}</b>
         </button>
       </div>
-
       <button className="btn-primary" onClick={onBack}>BACK</button>
     </div>
   )
