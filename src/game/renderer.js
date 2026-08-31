@@ -1,5 +1,6 @@
-import { VIRTUAL_W, VIRTUAL_H } from './engine.js'
+import { VIRTUAL_W, VIRTUAL_H, WORLD_W, WORLD_H } from './engine.js'
 import { PHASE1_5_VFX_ATLAS } from './phase1_5_vfx_atlas.js'
+import { drawPlayerSprite, drawEnemySprite } from './spriteRenderer.js'
 
 const PALETTE = {
   bgTop: '#1b1330', bgBottom: '#0d0a1a', floorLine: '#2a2050', player: '#7ce3ff', playerDark: '#2fb6d9',
@@ -7,7 +8,8 @@ const PALETTE = {
   goblinWeapon: '#4a4a4a', skeleton: '#e8e4d8', skeletonDark: '#a8a396', archer: '#8a6fb8', archerDark: '#5c4a80',
   archerBow: '#3a2f1c', enemyArrow: '#ff8866', obstacle: '#3a3450', obstacleDark: '#26213a', xpOrb: '#7ce3ff',
   goldCoin: '#ffd166', itemCommon: '#c9c9c9', itemUncommon: '#5fe07a', itemRare: '#7ca8ff', itemEpic: '#e0894d',
-  bullet: '#ffe66d', hp: '#ff5c7a', particle: '#ffd166',
+  bullet: '#ffe66d', hp: '#ff5c7a', particle: '#ffd166', bossBody: '#c23b4f', bossDark: '#7a1f2c',
+  worldBounds: 'rgba(124, 227, 255, 0.15)',
 }
 
 const VFX_CELL = 32
@@ -26,10 +28,24 @@ export function render(ctx, engine) {
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, VIRTUAL_W, VIRTUAL_H)
 
+  const camX = Math.round(engine.camera.x)
+  const camY = Math.round(engine.camera.y)
+
+  ctx.save()
+  ctx.translate(-camX, -camY)
+
   ctx.strokeStyle = PALETTE.floorLine
   ctx.lineWidth = 1
-  for (let x = 0; x < VIRTUAL_W; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_H); ctx.stroke() }
-  for (let y = 0; y < VIRTUAL_H; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_W, y); ctx.stroke() }
+  const gridStartX = Math.floor(camX / 20) * 20
+  const gridEndX = camX + VIRTUAL_W + 20
+  const gridStartY = Math.floor(camY / 20) * 20
+  const gridEndY = camY + VIRTUAL_H + 20
+  for (let x = gridStartX; x < gridEndX; x += 20) { ctx.beginPath(); ctx.moveTo(x, gridStartY); ctx.lineTo(x, gridEndY); ctx.stroke() }
+  for (let y = gridStartY; y < gridEndY; y += 20) { ctx.beginPath(); ctx.moveTo(gridStartX, y); ctx.lineTo(gridEndX, y); ctx.stroke() }
+
+  ctx.strokeStyle = PALETTE.worldBounds
+  ctx.lineWidth = 2
+  ctx.strokeRect(0, 0, WORLD_W, WORLD_H)
 
   for (const obs of engine.obstacles) {
     ctx.fillStyle = PALETTE.obstacleDark
@@ -49,16 +65,16 @@ export function render(ctx, engine) {
   for (const pk of engine.pickups) drawPickup(ctx, pk)
 
   for (const e of engine.enemies) {
-    if (e.type === 'goblin') drawGoblin(ctx, e)
-    else if (e.type === 'skeleton') drawSkeleton(ctx, e)
-    else if (e.type === 'archer') drawArcher(ctx, e)
-    else drawSlime(ctx, e)
+    if (e.type === 'boss') drawBoss(ctx, e)
+    else if (!drawEnemySprite(ctx, e, engine.player, performance.now())) {
+      if (e.type === 'goblin') drawGoblin(ctx, e)
+      else if (e.type === 'skeleton') drawSkeleton(ctx, e)
+      else if (e.type === 'archer') drawArcher(ctx, e)
+      else drawSlime(ctx, e)
+    }
   }
 
-  for (const b of engine.bullets) {
-    drawProjectileFx(ctx, b, engine.player.weapon)
-  }
-
+  for (const b of engine.bullets) drawProjectileFx(ctx, b, engine.player.weapon)
   ctx.fillStyle = PALETTE.bullet
   for (const b of engine.bullets) ctx.fillRect(Math.round(b.x) - 1, Math.round(b.y) - 1, 3, 3)
 
@@ -68,7 +84,7 @@ export function render(ctx, engine) {
     ctx.fillRect(-2.5, -0.75, 5, 1.5); ctx.restore()
   }
 
-  drawPlayer(ctx, engine.player)
+  if (!drawPlayerSprite(ctx, engine.player, engine, performance.now())) drawPlayer(ctx, engine.player)
 
   if (engine._novaFx) {
     const fx = engine._novaFx
@@ -78,105 +94,33 @@ export function render(ctx, engine) {
   }
 
   drawPhase15Vfx(ctx, engine)
+  ctx.restore()
 }
 
 function drawAtlasCell(ctx, cell, x, y, scale = 1, alpha = 1, rotation = 0) {
   if (!atlasImage.complete || !atlasImage.naturalWidth) return
   const sx = cell * VFX_CELL
   const size = VFX_CELL * scale
-  ctx.save()
-  ctx.globalAlpha = alpha
-  ctx.translate(Math.round(x), Math.round(y))
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(Math.round(x), Math.round(y))
   if (rotation) ctx.rotate(rotation)
   ctx.drawImage(atlasImage, sx, 0, VFX_CELL, VFX_CELL, -size / 2, -size / 2, size, size)
   ctx.restore()
 }
-
-function drawProjectileFx(ctx, bullet, weapon) {
-  const cell = PROJECTILE_CELL[weapon] ?? 4
-  const angle = Math.atan2(bullet.vy, bullet.vx)
-  drawAtlasCell(ctx, cell, bullet.x, bullet.y, 0.28, 0.75, angle)
-}
-
+function drawProjectileFx(ctx, bullet, weapon) { const cell = PROJECTILE_CELL[weapon] ?? 4; drawAtlasCell(ctx, cell, bullet.x, bullet.y, 0.28, 0.75, Math.atan2(bullet.vy, bullet.vx)) }
 function drawPhase15Vfx(ctx, engine) {
   if (!engine.__phase15VfxEnabled || !engine.__phase15Vfx) return
-  for (const fx of engine.__phase15Vfx) {
-    const cell = VFX_INDEX[fx.type]
-    if (cell === undefined) continue
-    const progress = Math.max(0, fx.life / fx.maxLife)
-    const pulse = 1 + Math.sin((1 - progress) * Math.PI) * 0.12
-    drawAtlasCell(ctx, cell, fx.x, fx.y, fx.scale * pulse, Math.min(1, progress * 1.8), fx.rotation)
-  }
+  for (const fx of engine.__phase15Vfx) { const cell = VFX_INDEX[fx.type]; if (cell === undefined) continue; const progress = Math.max(0, fx.life / fx.maxLife); const pulse = 1 + Math.sin((1 - progress) * Math.PI) * 0.12; drawAtlasCell(ctx, cell, fx.x, fx.y, fx.scale * pulse, Math.min(1, progress * 1.8), fx.rotation) }
 }
-
-function drawSlime(ctx, e) {
-  const r = e.radius, squish = e.squish
-  ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y)); ctx.scale(1 + squish, 1 - squish)
-  ctx.fillStyle = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.slime
-  ctx.beginPath(); ctx.ellipse(0, 1, r, r * 0.8, 0, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.slimeDark
-  ctx.fillRect(-r * 0.5, -1, 1.5, 1.5); ctx.fillRect(r * 0.1, -1, 1.5, 1.5); ctx.restore()
-  drawEnemyHp(ctx, e, r, 5)
-}
-
 function drawPickup(ctx, pk) {
   const t = (performance.now() - pk.bornAt) / 1000, bobY = Math.sin(t * 4) * 1, x = Math.round(pk.x), y = Math.round(pk.y + bobY)
   if (pk.kind === 'xp') { ctx.fillStyle = PALETTE.xpOrb; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill() }
   else if (pk.kind === 'gold') { ctx.fillStyle = PALETTE.goldCoin; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill() }
-  else if (pk.kind === 'item') {
-    const color = pk.value.rarity === 'epic' ? PALETTE.itemEpic : pk.value.rarity === 'rare' ? PALETTE.itemRare : pk.value.rarity === 'uncommon' ? PALETTE.itemUncommon : PALETTE.itemCommon
-    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillStyle = color; ctx.fillRect(-3, -3, 6, 6); ctx.restore()
-    if (pk.value.rarity !== 'common') { ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1 }
-  }
+  else if (pk.kind === 'item') { const color = pk.value.rarity === 'epic' ? PALETTE.itemEpic : pk.value.rarity === 'rare' ? PALETTE.itemRare : pk.value.rarity === 'uncommon' ? PALETTE.itemUncommon : PALETTE.itemCommon; ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillStyle = color; ctx.fillRect(-3, -3, 6, 6); ctx.restore(); if (pk.value.rarity !== 'common') { ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1 } }
 }
-
-function drawGoblin(ctx, e) {
-  const r = e.radius, bodyColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.goblin, darkColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.goblinDark
-  ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y + e.bob)); ctx.scale(e.facing, 1)
-  ctx.fillStyle = bodyColor; ctx.fillRect(-r * 0.55, -r * 0.6, r * 1.1, r * 1.2)
-  ctx.beginPath(); ctx.arc(0, -r * 0.75, r * 0.55, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = darkColor; ctx.beginPath(); ctx.moveTo(r * 0.35, -r); ctx.lineTo(r * 0.75, -r * 1.15); ctx.lineTo(r * 0.4, -r * 0.7); ctx.fill()
-  ctx.fillStyle = '#1a0f00'; ctx.fillRect(r * 0.05, -r * 0.85, 1.2, 1.2)
-  ctx.strokeStyle = PALETTE.goblinWeapon; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(r * 0.5, -r * 0.2); ctx.lineTo(r * 1.3, -r * 0.35); ctx.stroke(); ctx.restore()
-  drawEnemyHp(ctx, e, r, 6)
-}
-
-function drawSkeleton(ctx, e) {
-  const r = e.radius, bodyColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.skeleton, darkColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.skeletonDark
-  ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y + e.bob)); ctx.scale(e.facing, 1)
-  ctx.fillStyle = bodyColor; ctx.fillRect(-r * 0.5, -r * 0.7, r, r * 1.4); ctx.strokeStyle = darkColor; ctx.lineWidth = 0.8
-  for (let i = -2; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-r * 0.45, i * r * 0.3); ctx.lineTo(r * 0.45, i * r * 0.3); ctx.stroke() }
-  ctx.fillStyle = bodyColor; ctx.beginPath(); ctx.arc(0, -r * 0.95, r * 0.5, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = '#1a1520'; ctx.fillRect(-r * 0.28, -r, r * 0.2, r * 0.2); ctx.fillRect(r * 0.08, -r, r * 0.2, r * 0.2)
-  ctx.strokeStyle = darkColor; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 1.4, -r * 0.15); ctx.stroke(); ctx.restore()
-  drawEnemyHp(ctx, e, r, 7)
-}
-
-function drawArcher(ctx, e) {
-  const r = e.radius, bodyColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.archer, darkColor = e.hitFlash > 0 ? PALETTE.slimeHit : PALETTE.archerDark
-  ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y)); ctx.scale(e.facing, 1)
-  ctx.fillStyle = bodyColor; ctx.fillRect(-r * 0.5, -r * 0.5, r, r); ctx.beginPath(); ctx.arc(0, -r * 0.65, r * 0.5, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = '#0a0714'; ctx.fillRect(-r * 0.2, -r * 0.7, r * 0.4, r * 0.25)
-  ctx.strokeStyle = PALETTE.archerBow; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(r * 0.6, 0, r * 0.6, -Math.PI * 0.4, Math.PI * 0.4); ctx.stroke(); ctx.restore()
-  drawEnemyHp(ctx, e, r, 6)
-}
-
-function drawEnemyHp(ctx, e, r, offset) {
-  if (e.hp < e.maxHp) {
-    const w = r * 2
-    ctx.fillStyle = '#000'; ctx.fillRect(e.x - w / 2, e.y - r - offset, w, 2)
-    ctx.fillStyle = PALETTE.hp; ctx.fillRect(e.x - w / 2, e.y - r - offset, w * Math.max(0, e.hp / e.maxHp), 2)
-  }
-}
-
-function drawPlayer(ctx, p) {
-  ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y))
-  const flashing = p.invulnerable > 0 && Math.floor(performance.now() / 80) % 2 === 0
-  ctx.globalAlpha = flashing ? 0.4 : 1
-  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : PALETTE.player
-  ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : PALETTE.playerDark; ctx.fillRect(-2, -2, 1.5, 1.5); ctx.fillRect(1, -2, 1.5, 1.5)
-  const fx = p.facing.x, fy = p.facing.y
-  ctx.strokeStyle = PALETTE.playerDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(fx * p.radius, fy * p.radius); ctx.lineTo(fx * (p.radius + 5), fy * (p.radius + 5)); ctx.stroke()
-  ctx.restore()
-}
+function drawGoblin(ctx, e) { const r=e.radius,c=e.hitFlash>0?PALETTE.slimeHit:PALETTE.goblin,d=e.hitFlash>0?PALETTE.slimeHit:PALETTE.goblinDark; ctx.save();ctx.translate(Math.round(e.x),Math.round(e.y+e.bob));ctx.scale(e.facing,1);ctx.fillStyle=c;ctx.fillRect(-r*.55,-r*.6,r*1.1,r*1.2);ctx.beginPath();ctx.arc(0,-r*.75,r*.55,0,Math.PI*2);ctx.fill();ctx.fillStyle=d;ctx.beginPath();ctx.moveTo(r*.35,-r);ctx.lineTo(r*.75,-r*1.15);ctx.lineTo(r*.4,-r*.7);ctx.fill();ctx.fillStyle='#1a0f00';ctx.fillRect(r*.05,-r*.85,1.2,1.2);ctx.strokeStyle=PALETTE.goblinWeapon;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(r*.5,-r*.2);ctx.lineTo(r*1.3,-r*.35);ctx.stroke();ctx.restore();drawEnemyHp(ctx,e,r,6) }
+function drawSkeleton(ctx,e){const r=e.radius,c=e.hitFlash>0?PALETTE.slimeHit:PALETTE.skeleton,d=e.hitFlash>0?PALETTE.slimeHit:PALETTE.skeletonDark;ctx.save();ctx.translate(Math.round(e.x),Math.round(e.y+e.bob));ctx.scale(e.facing,1);ctx.fillStyle=c;ctx.fillRect(-r*.5,-r*.7,r,r*1.4);ctx.strokeStyle=d;ctx.lineWidth=.8;for(let i=-2;i<=1;i++){ctx.beginPath();ctx.moveTo(-r*.45,i*r*.3);ctx.lineTo(r*.45,i*r*.3);ctx.stroke()}ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,-r*.95,r*.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#1a1520';ctx.fillRect(-r*.28,-r,r*.2,r*.2);ctx.fillRect(r*.08,-r,r*.2,r*.2);ctx.strokeStyle=d;ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(r*.5,0);ctx.lineTo(r*1.4,-r*.15);ctx.stroke();ctx.restore();drawEnemyHp(ctx,e,r,7)}
+function drawArcher(ctx,e){const r=e.radius,c=e.hitFlash>0?PALETTE.slimeHit:PALETTE.archer,d=e.hitFlash>0?PALETTE.slimeHit:PALETTE.archerDark;ctx.save();ctx.translate(Math.round(e.x),Math.round(e.y));ctx.scale(e.facing,1);ctx.fillStyle=c;ctx.fillRect(-r*.5,-r*.5,r,r);ctx.beginPath();ctx.arc(0,-r*.65,r*.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#0a0714';ctx.fillRect(-r*.2,-r*.7,r*.4,r*.25);ctx.strokeStyle=PALETTE.archerBow;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(r*.6,0,r*.6,-Math.PI*.4,Math.PI*.4);ctx.stroke();ctx.restore();drawEnemyHp(ctx,e,r,6)}
+function drawSlime(ctx,e){const r=e.radius,s=e.squish;ctx.save();ctx.translate(Math.round(e.x),Math.round(e.y));ctx.scale(1+s,1-s);ctx.fillStyle=e.hitFlash>0?PALETTE.slimeHit:PALETTE.slime;ctx.beginPath();ctx.ellipse(0,1,r,r*.8,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=e.hitFlash>0?PALETTE.slimeHit:PALETTE.slimeDark;ctx.fillRect(-r*.5,-1,1.5,1.5);ctx.fillRect(r*.1,-1,1.5,1.5);ctx.restore();drawEnemyHp(ctx,e,r,5)}
+function drawBoss(ctx,e){const r=e.radius;ctx.save();ctx.translate(Math.round(e.x),Math.round(e.y+e.bob));ctx.fillStyle=e.hitFlash>0?'#fff':PALETTE.bossBody;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.fillStyle=PALETTE.bossDark;ctx.fillRect(-r*.55,-r*.15,r*.35,r*.25);ctx.fillRect(r*.2,-r*.15,r*.35,r*.25);ctx.strokeStyle='#ffcf5c';ctx.lineWidth=1;ctx.beginPath();ctx.arc(0,0,r+2,0,Math.PI*2);ctx.stroke();if(e.state==='telegraph'){ctx.globalAlpha=.65;ctx.strokeStyle='#ff5c7a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,r+6,0,Math.PI*2);ctx.stroke()}ctx.restore();const w=r*2.3;ctx.fillStyle='#000';ctx.fillRect(e.x-w/2,e.y-r-9,w,3);ctx.fillStyle='#ff5c7a';ctx.fillRect(e.x-w/2,e.y-r-9,w*Math.max(0,e.hp/e.maxHp),3);ctx.fillStyle='#ffd166';ctx.font='7px monospace';ctx.textAlign='center';ctx.fillText('BOSS',e.x,e.y-r-12)}
+function drawEnemyHp(ctx,e,r,offset){if(e.hp<e.maxHp){const w=r*2;ctx.fillStyle='#000';ctx.fillRect(e.x-w/2,e.y-r-offset,w,2);ctx.fillStyle=PALETTE.hp;ctx.fillRect(e.x-w/2,e.y-r-offset,w*Math.max(0,e.hp/e.maxHp),2)}}
+function drawPlayer(ctx,p){ctx.save();ctx.translate(Math.round(p.x),Math.round(p.y));const flashing=p.invulnerable>0&&Math.floor(performance.now()/80)%2===0;ctx.globalAlpha=flashing?.4:1;ctx.fillStyle=p.hitFlash>0?'#fff':PALETTE.player;ctx.beginPath();ctx.arc(0,0,p.radius,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.hitFlash>0?'#fff':PALETTE.playerDark;ctx.fillRect(-2,-2,1.5,1.5);ctx.fillRect(1,-2,1.5,1.5);const fx=p.facing.x,fy=p.facing.y;ctx.strokeStyle=PALETTE.playerDark;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(fx*p.radius,fy*p.radius);ctx.lineTo(fx*(p.radius+5),fy*(p.radius+5));ctx.stroke();ctx.restore()}
