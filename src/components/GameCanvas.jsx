@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { VIRTUAL_W, VIRTUAL_H } from '../game/engine.js'
-import { Phase1_5GameEngine } from '../game/phase1_5Engine.js'
+import { AudioPhaseGameEngine } from '../game/audioPhaseEngine.js'
 import { render } from '../game/renderer.js'
+import { audioManager } from '../game/audioManager.js'
+import { loadSave, updateSettings, recordRun } from '../game/saveSystem.js'
 import Joystick from './Joystick.jsx'
 import HUD from './HUD.jsx'
 import StartScreen from './StartScreen.jsx'
 import GameOverScreen from './GameOverScreen.jsx'
 import InventoryOverlay from './InventoryOverlay.jsx'
+import SettingsOverlay from './SettingsOverlay.jsx'
 
 const HUD_UPDATE_INTERVAL = 90
 const WEAPON_ORDER = ['pistol', 'shotgun', 'rifle', 'bow', 'staff']
@@ -16,10 +19,12 @@ export default function GameCanvas() {
   const engineRef = useRef(null)
   const rafRef = useRef(null)
   const lastHudUpdate = useRef(0)
+  const saveRef = useRef(loadSave())
 
   const [phase, setPhase] = useState('start')
   const [paused, setPaused] = useState(false)
-  const [autoAim, setAutoAim] = useState(true)
+  const [pauseView, setPauseView] = useState('inventory')
+  const [settings, setSettings] = useState(saveRef.current.settings)
   const [weapon, setWeaponState] = useState('pistol')
   const [hud, setHud] = useState({
     hp: 100, maxHp: 100, score: 0, wave: 1, dodgeReady: true,
@@ -52,7 +57,12 @@ export default function GameCanvas() {
   }, [])
 
   const beginGame = useCallback(() => {
-    const engine = new Phase1_5GameEngine({
+    audioManager.unlock()
+    audioManager.setSfxVolume(settings.sfxVolume)
+    audioManager.setBgmVolume(settings.bgmVolume)
+    audioManager.startBgm()
+
+    const engine = new AudioPhaseGameEngine({
       onHud: (data) => {
         const now = performance.now()
         if (now - lastHudUpdate.current > HUD_UPDATE_INTERVAL) {
@@ -61,26 +71,43 @@ export default function GameCanvas() {
         }
       },
       onGameOver: ({ score, wave }) => {
+        recordRun({ score, wave, gold: engineRef.current?.player.gold || 0 })
         setFinalStats({ score, wave })
         setPhase('gameover')
       },
     })
-    engine.setAutoAim(autoAim)
+    engine.setAutoAim(settings.autoAim)
+    engine.setScreenShakeEnabled?.(settings.screenShake)
     engine.setWeapon('pistol')
     setWeaponState('pistol')
     setPaused(false)
+    setPauseView('inventory')
     engineRef.current = engine
     engine.start()
     setPhase('playing')
-  }, [autoAim])
+  }, [settings])
 
   useEffect(() => {
     startRenderLoop()
     return () => {
       cancelAnimationFrame(rafRef.current)
       if (engineRef.current) engineRef.current.stop()
+      audioManager.stopBgm()
     }
   }, [startRenderLoop])
+
+  const handleSettingsChange = useCallback((patch) => {
+    const next = { ...settings, ...patch }
+    setSettings(next)
+    saveRef.current = updateSettings(patch)
+    audioManager.setSfxVolume(next.sfxVolume)
+    audioManager.setBgmVolume(next.bgmVolume)
+    const engine = engineRef.current
+    if (engine) {
+      if (patch.autoAim !== undefined) engine.setAutoAim(next.autoAim)
+      if (patch.screenShake !== undefined) engine.setScreenShakeEnabled?.(next.screenShake)
+    }
+  }, [settings])
 
   const handleMove = useCallback((x, y) => { if (engineRef.current) engineRef.current.setMove(x, y) }, [])
   const handleAim = useCallback((x, y) => {
@@ -104,12 +131,21 @@ export default function GameCanvas() {
     engineRef.current = null
     beginGame()
   }, [beginGame])
-  const handlePause = useCallback(() => { if (engineRef.current) engineRef.current.stop(); setPaused(true) }, [])
-  const handleResume = useCallback(() => { if (engineRef.current) engineRef.current.start(); setPaused(false) }, [])
+  const handlePause = useCallback(() => {
+    if (engineRef.current) engineRef.current.stop()
+    setPauseView('inventory')
+    setPaused(true)
+  }, [])
+  const handleResume = useCallback(() => {
+    if (engineRef.current) engineRef.current.start()
+    setPaused(false)
+  }, [])
   const handleQuitToMenu = useCallback(() => {
     if (engineRef.current) engineRef.current.stop()
     engineRef.current = null
+    audioManager.stopBgm()
     setPaused(false)
+    setPauseView('inventory')
     setPhase('start')
   }, [])
   const handleEquip = useCallback((itemId) => { if (engineRef.current) engineRef.current.equipItem(itemId); setOverlayTick((t) => t + 1) }, [])
@@ -146,7 +182,7 @@ export default function GameCanvas() {
       {phase === 'playing' && (
         <div className="controls">
           <Joystick onChange={handleMove} />
-          {!autoAim && <div className="right-stick-wrap"><Joystick onChange={handleAim} /></div>}
+          {!settings.autoAim && <div className="right-stick-wrap"><Joystick onChange={handleAim} /></div>}
           <div className="skill-row">
             <button className="skill-btn" disabled={hud.skillCooldowns.nova > 0 || hud.mana < 25} onTouchStart={(e) => { e.preventDefault(); handleUseSkill('nova') }} onMouseDown={() => handleUseSkill('nova')}>
               <span className="skill-btn-label">NOVA</span>
@@ -161,7 +197,10 @@ export default function GameCanvas() {
           <button className="weapon-btn" onTouchStart={(e) => { e.preventDefault(); handleWeaponSwitch() }} onMouseDown={handleWeaponSwitch}>{hud.weapon || weapon.toUpperCase()}</button>
         </div>
       )}
-      {phase === 'playing' && paused && engineRef.current && (
+      {phase === 'playing' && paused && engineRef.current && pauseView === 'settings' && (
+        <SettingsOverlay settings={settings} onChange={handleSettingsChange} onBack={() => setPauseView('inventory')} />
+      )}
+      {phase === 'playing' && paused && engineRef.current && pauseView === 'inventory' && (
         <InventoryOverlay
           stats={{ level: engineRef.current.player.level, gold: engineRef.current.player.gold, attackMultiplier: engineRef.current.player.attackMultiplier, defense: engineRef.current.player.defense, maxHp: engineRef.current.player.maxHp }}
           inventory={engineRef.current.inventory}
@@ -169,13 +208,15 @@ export default function GameCanvas() {
           shop={engineRef.current.shop}
           onResume={handleResume}
           onClose={handleQuitToMenu}
+          onOpenSettings={() => setPauseView('settings')}
           onEquip={handleEquip}
           onUnequip={handleUnequip}
           onForge={handleForge}
           onBuyShopItem={handleBuyShopItem}
+          overlayTick={overlayTick}
         />
       )}
-      {phase === 'start' && <StartScreen onStart={beginGame} autoAim={autoAim} onToggleAutoAim={() => setAutoAim((v) => !v)} />}
+      {phase === 'start' && <StartScreen onStart={beginGame} autoAim={settings.autoAim} onToggleAutoAim={() => handleSettingsChange({ autoAim: !settings.autoAim })} />}
       {phase === 'gameover' && <GameOverScreen score={finalStats.score} wave={finalStats.wave} onRestart={handleRestart} />}
     </div>
   )
