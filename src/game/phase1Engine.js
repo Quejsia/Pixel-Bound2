@@ -153,12 +153,13 @@ export class Phase1GameEngine extends GameEngine {
       for (let i = 0; i < weapon.pellets; i++) {
         const t = weapon.pellets === 1 ? 0 : i / (weapon.pellets - 1) - 0.5
         const angle = baseAngle + t * weapon.spread
-        const crit = Math.random() < weapon.critChance
+        const crit = Math.random() < Math.min(1, weapon.critChance + (p.critChanceBonus || 0))
         let status = null
         if (weapon.statuses.length && Math.random() < 0.24) {
           status = weapon.statuses[Math.floor(Math.random() * weapon.statuses.length)]
         }
-        const amount = weapon.damage * p.attackMultiplier * (crit ? 2 : 1)
+        const critMultiplier = crit ? 2 * (p.critDamageMultiplier || 1) : 1
+        const amount = weapon.damage * p.attackMultiplier * critMultiplier
         this.bullets.push(makeBullet(this, p.x, p.y, Math.cos(angle) * weapon.speed, Math.sin(angle) * weapon.speed, amount, { crit, status }, weapon.life))
       }
     }
@@ -176,8 +177,7 @@ export class Phase1GameEngine extends GameEngine {
         hp: Math.ceil(this.player.hp), maxHp: this.player.maxHp, score: this.score, wave: this.wave,
         dodgeReady: this.player.dodgeCooldown <= 0, level: this.player.level, xp: this.player.xp,
         xpToNext: this.player.xpToNext, gold: this.player.gold, inventoryCount: this.inventory.length,
-        mana: Math.floor(this.player.mana), maxMana: this.player.maxMana,
-        skillCooldowns: { ...this.player.skillCooldowns }, weapon: this.getWeaponLabel(),
+        mana: Math.floor(this.player.mana), maxMana: this.player.maxMana, skillCooldowns: { ...this.player.skillCooldowns }, weapon: this.getWeaponLabel(),
         combo: this.__phase1Combo, damageNumbers: this.__phase1DamageNumbers.map((n) => ({ ...n })),
       })
     }
