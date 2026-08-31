@@ -139,8 +139,9 @@ export default function GameCanvas() {
     if (!engine) return
     const result = engine.chooseUpgrade(id)
     if (!result.ok) return
-    if (engine.awaitingUpgrade) setLevelUpOptions(engine.getUpgradeChoices())
-    else setLevelUpOptions(null)
+    // chooseUpgrade may immediately queue a second level-up. Read the engine's
+    // current choices directly instead of calling a non-existent UI-only method.
+    setLevelUpOptions(engine.awaitingUpgrade ? engine.getUpgradeChoices() : null)
   }, [])
   const handleRestart = useCallback(() => {
     if (engineRef.current) engineRef.current.stop()
@@ -191,7 +192,7 @@ export default function GameCanvas() {
           {n.crit ? `CRIT ${n.value}` : n.value}
         </div>
       ))}
-      {phase === 'playing' && hud.combo > 1 && (
+      {phase === 'playing' && hud.combo > 1 && !levelUpOptions && (
         <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 7, fontWeight: 900, fontSize: '18px', color: '#ffd34d', textShadow: '2px 2px 0 #111' }}>
           {hud.combo} HIT COMBO
         </div>
