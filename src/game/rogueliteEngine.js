@@ -56,7 +56,7 @@ export class RogueliteGameEngine extends AudioPhaseGameEngine {
     if (this.pendingLevelUps <= 0) return
     this.awaitingUpgrade = true
     this.currentUpgradeChoices = pickChoices(3).map(({ apply, ...choice }) => choice)
-    audioManager.levelUp()
+    audioManager.skill()
     this.stop()
     if (this.onLevelUp) this.onLevelUp(this.currentUpgradeChoices)
   }
