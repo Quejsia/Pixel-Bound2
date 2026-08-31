@@ -16,8 +16,8 @@ const STAT_LABELS = {
   speed: (v) => `+${v} SPD`,
 }
 
-export default function InventoryOverlay({ stats, inventory, equipment, shop, onResume, onClose, onEquip, onUnequip, onForge, onBuyShopItem }) {
-  const [tab, setTab] = useState('items') // 'items' | 'blacksmith'
+export default function InventoryOverlay({ stats, inventory, equipment, shop, onResume, onClose, onOpenSettings, onEquip, onUnequip, onForge, onBuyShopItem }) {
+  const [tab, setTab] = useState('items')
   const [showTip, setShowTip] = useState(true)
   const [forgeMsg, setForgeMsg] = useState(null)
   const [shopMsg, setShopMsg] = useState(null)
@@ -25,24 +25,17 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
   const handleForgeClick = (item) => {
     const result = onForge(item.id)
     if (!result) return
-    if (result.ok) {
-      setForgeMsg(`${item.name} forged to ${RARITY_LABELS[result.newRarity].label}!`)
-    } else if (result.reason === 'not-enough-gold') {
-      setForgeMsg(`Need ${result.cost} gold to forge this.`)
-    } else if (result.reason === 'max-rarity') {
-      setForgeMsg(`${item.name} is already max rarity.`)
-    }
+    if (result.ok) setForgeMsg(`${item.name} forged to ${RARITY_LABELS[result.newRarity].label}!`)
+    else if (result.reason === 'not-enough-gold') setForgeMsg(`Need ${result.cost} gold to forge this.`)
+    else if (result.reason === 'max-rarity') setForgeMsg(`${item.name} is already max rarity.`)
     setTimeout(() => setForgeMsg(null), 2200)
   }
 
   const handleBuyClick = (slotIndex, item) => {
     const result = onBuyShopItem(slotIndex)
     if (!result) return
-    if (result.ok) {
-      setShopMsg(`Bought ${item.name}!`)
-    } else if (result.reason === 'not-enough-gold') {
-      setShopMsg(`Need ${result.cost} gold for this.`)
-    }
+    if (result.ok) setShopMsg(`Bought ${item.name}!`)
+    else if (result.reason === 'not-enough-gold') setShopMsg(`Need ${result.cost} gold for this.`)
     setTimeout(() => setShopMsg(null), 2200)
   }
 
@@ -77,9 +70,7 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
                   <span className="equip-slot-stat">{STAT_LABELS[item.statType](item.statValue)}</span>
                   <button className="mini-btn" onClick={() => onUnequip(slot)}>Unequip</button>
                 </>
-              ) : (
-                <span className="equip-slot-empty">Empty</span>
-              )}
+              ) : <span className="equip-slot-empty">Empty</span>}
             </div>
           )
         })}
@@ -87,12 +78,7 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
 
       <div className="tab-row">
         <button className={`tab-btn ${tab === 'items' ? 'tab-btn-active' : ''}`} onClick={() => setTab('items')}>Items ({inventory.length})</button>
-        <button
-          className={`tab-btn ${tab === 'blacksmith' ? 'tab-btn-active' : ''}`}
-          onClick={() => { setTab('blacksmith'); setShowTip(false) }}
-        >
-          Blacksmith
-        </button>
+        <button className={`tab-btn ${tab === 'blacksmith' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('blacksmith'); setShowTip(false) }}>Blacksmith</button>
       </div>
 
       {tab === 'items' && (
@@ -115,20 +101,11 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
 
       {tab === 'blacksmith' && (
         <div className="blacksmith-panel">
-          {showTip && (
-            <p className="blacksmith-tip">
-              The Blacksmith sells rotating stock for gold, and can also upgrade your own items' rarity. Higher rarity costs more.
-            </p>
-          )}
+          {showTip && <p className="blacksmith-tip">The Blacksmith sells rotating stock for gold, and can also upgrade your own items' rarity. Higher rarity costs more.</p>}
           {shopMsg && <p className="forge-msg">{shopMsg}</p>}
-
-          <h3 className="blacksmith-subheading">
-            Shop Stock <span className="shop-timer">restocks in {formatTimer(shop.timer)}</span>
-          </h3>
+          <h3 className="blacksmith-subheading">Shop Stock <span className="shop-timer">restocks in {formatTimer(shop.timer)}</span></h3>
           <div className="inventory-list">
-            {shop.stock.every((s) => !s) && (
-              <p className="inventory-empty">Sold out — check back after restock.</p>
-            )}
+            {shop.stock.every((s) => !s) && <p className="inventory-empty">Sold out — check back after restock.</p>}
             {shop.stock.map((item, i) => {
               if (!item) return null
               const r = RARITY_LABELS[item.rarity]
@@ -138,20 +115,15 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
                     <span className="inventory-item-name">{item.name}</span>
                     <span className="inventory-item-rarity" style={{ color: r.color }}>{r.label} · {STAT_LABELS[item.statType](item.statValue)}</span>
                   </div>
-                  <button className="mini-btn" disabled={stats.gold < item.price} onClick={() => handleBuyClick(i, item)}>
-                    🪙{item.price}
-                  </button>
+                  <button className="mini-btn" disabled={stats.gold < item.price} onClick={() => handleBuyClick(i, item)}>🪙{item.price}</button>
                 </div>
               )
             })}
           </div>
-
           {forgeMsg && <p className="forge-msg">{forgeMsg}</p>}
           <h3 className="blacksmith-subheading">Forge Your Items</h3>
           <div className="inventory-list">
-            {[...inventory, ...Object.values(equipment).filter(Boolean)].length === 0 && (
-              <p className="inventory-empty">No items to forge yet.</p>
-            )}
+            {[...inventory, ...Object.values(equipment).filter(Boolean)].length === 0 && <p className="inventory-empty">No items to forge yet.</p>}
             {[...inventory, ...Object.values(equipment).filter(Boolean)].map((item) => {
               const r = RARITY_LABELS[item.rarity]
               const isMax = item.rarity === 'epic'
@@ -161,9 +133,7 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
                     <span className="inventory-item-name">{item.name}</span>
                     <span className="inventory-item-rarity" style={{ color: r.color }}>{r.label} · {STAT_LABELS[item.statType](item.statValue)}</span>
                   </div>
-                  <button className="mini-btn" disabled={isMax} onClick={() => handleForgeClick(item)}>
-                    {isMax ? 'MAX' : 'Forge'}
-                  </button>
+                  <button className="mini-btn" disabled={isMax} onClick={() => handleForgeClick(item)}>{isMax ? 'MAX' : 'Forge'}</button>
                 </div>
               )
             })}
@@ -173,6 +143,7 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
 
       <div className="overlay-btn-row">
         <button className="btn-primary" onClick={onResume}>RESUME</button>
+        <button className="btn-secondary" onClick={onOpenSettings}>SETTINGS</button>
         <button className="btn-secondary" onClick={onClose}>QUIT TO MENU</button>
       </div>
     </div>
