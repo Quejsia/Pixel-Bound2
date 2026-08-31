@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { VIRTUAL_W, VIRTUAL_H } from '../game/engine.js'
-import { AudioPhaseGameEngine } from '../game/audioPhaseEngine.js'
+import { RogueliteGameEngine } from '../game/rogueliteEngine.js'
 import { render } from '../game/renderer.js'
 import { audioManager } from '../game/audioManager.js'
 import { loadSave, updateSettings, recordRun } from '../game/saveSystem.js'
@@ -10,6 +10,7 @@ import StartScreen from './StartScreen.jsx'
 import GameOverScreen from './GameOverScreen.jsx'
 import InventoryOverlay from './InventoryOverlay.jsx'
 import SettingsOverlay from './SettingsOverlay.jsx'
+import LevelUpOverlay from './LevelUpOverlay.jsx'
 
 const HUD_UPDATE_INTERVAL = 90
 const WEAPON_ORDER = ['pistol', 'shotgun', 'rifle', 'bow', 'staff']
@@ -24,6 +25,7 @@ export default function GameCanvas() {
   const [phase, setPhase] = useState('start')
   const [paused, setPaused] = useState(false)
   const [pauseView, setPauseView] = useState('inventory')
+  const [levelUpOptions, setLevelUpOptions] = useState(null)
   const [settings, setSettings] = useState(saveRef.current.settings)
   const [weapon, setWeaponState] = useState('pistol')
   const [hud, setHud] = useState({
@@ -62,7 +64,7 @@ export default function GameCanvas() {
     audioManager.setBgmVolume(settings.bgmVolume)
     audioManager.startBgm()
 
-    const engine = new AudioPhaseGameEngine({
+    const engine = new RogueliteGameEngine({
       onHud: (data) => {
         const now = performance.now()
         if (now - lastHudUpdate.current > HUD_UPDATE_INTERVAL) {
@@ -70,8 +72,12 @@ export default function GameCanvas() {
           setHud(data)
         }
       },
+      onLevelUp: (choices) => {
+        setLevelUpOptions(choices)
+      },
       onGameOver: ({ score, wave }) => {
         recordRun({ score, wave, gold: engineRef.current?.player.gold || 0 })
+        setLevelUpOptions(null)
         setFinalStats({ score, wave })
         setPhase('gameover')
       },
@@ -82,6 +88,7 @@ export default function GameCanvas() {
     setWeaponState('pistol')
     setPaused(false)
     setPauseView('inventory')
+    setLevelUpOptions(null)
     engineRef.current = engine
     engine.start()
     setPhase('playing')
@@ -109,33 +116,43 @@ export default function GameCanvas() {
     }
   }, [settings])
 
-  const handleMove = useCallback((x, y) => { if (engineRef.current) engineRef.current.setMove(x, y) }, [])
+  const handleMove = useCallback((x, y) => { if (engineRef.current && !levelUpOptions) engineRef.current.setMove(x, y) }, [levelUpOptions])
   const handleAim = useCallback((x, y) => {
     const engine = engineRef.current
-    if (!engine) return
+    if (!engine || levelUpOptions) return
     engine.setAim(x, y)
     engine.setShootHeld(Math.hypot(x, y) > 0.25)
-  }, [])
-  const handleDodge = useCallback(() => { if (engineRef.current) engineRef.current.requestDodge() }, [])
+  }, [levelUpOptions])
+  const handleDodge = useCallback(() => { if (engineRef.current && !levelUpOptions) engineRef.current.requestDodge() }, [levelUpOptions])
   const handleWeaponSwitch = useCallback(() => {
+    if (levelUpOptions) return
     setWeaponState((prev) => {
       const currentIndex = WEAPON_ORDER.indexOf(prev)
       const next = WEAPON_ORDER[(currentIndex + 1) % WEAPON_ORDER.length]
       if (engineRef.current) engineRef.current.setWeapon(next)
       return next
     })
+  }, [levelUpOptions])
+  const handleUseSkill = useCallback((key) => { if (engineRef.current && !levelUpOptions) engineRef.current.useSkill(key) }, [levelUpOptions])
+  const handleChooseUpgrade = useCallback((id) => {
+    const engine = engineRef.current
+    if (!engine) return
+    const result = engine.chooseUpgrade(id)
+    if (!result.ok) return
+    if (engine.awaitingUpgrade) setLevelUpOptions(engine.getUpgradeChoices())
+    else setLevelUpOptions(null)
   }, [])
-  const handleUseSkill = useCallback((key) => { if (engineRef.current) engineRef.current.useSkill(key) }, [])
   const handleRestart = useCallback(() => {
     if (engineRef.current) engineRef.current.stop()
     engineRef.current = null
     beginGame()
   }, [beginGame])
   const handlePause = useCallback(() => {
+    if (levelUpOptions) return
     if (engineRef.current) engineRef.current.stop()
     setPauseView('inventory')
     setPaused(true)
-  }, [])
+  }, [levelUpOptions])
   const handleResume = useCallback(() => {
     if (engineRef.current) engineRef.current.start()
     setPaused(false)
@@ -146,6 +163,7 @@ export default function GameCanvas() {
     audioManager.stopBgm()
     setPaused(false)
     setPauseView('inventory')
+    setLevelUpOptions(null)
     setPhase('start')
   }, [])
   const handleEquip = useCallback((itemId) => { if (engineRef.current) engineRef.current.equipItem(itemId); setOverlayTick((t) => t + 1) }, [])
@@ -179,7 +197,7 @@ export default function GameCanvas() {
         </div>
       )}
       {phase === 'playing' && <HUD {...hud} onPause={handlePause} />}
-      {phase === 'playing' && (
+      {phase === 'playing' && !levelUpOptions && (
         <div className="controls">
           <Joystick onChange={handleMove} />
           {!settings.autoAim && <div className="right-stick-wrap"><Joystick onChange={handleAim} /></div>}
@@ -196,6 +214,9 @@ export default function GameCanvas() {
           <button className={`dodge-btn ${hud.dodgeReady ? '' : 'dodge-btn-cooldown'}`} onTouchStart={(e) => { e.preventDefault(); handleDodge() }} onMouseDown={handleDodge}>DODGE</button>
           <button className="weapon-btn" onTouchStart={(e) => { e.preventDefault(); handleWeaponSwitch() }} onMouseDown={handleWeaponSwitch}>{hud.weapon || weapon.toUpperCase()}</button>
         </div>
+      )}
+      {phase === 'playing' && levelUpOptions && engineRef.current && (
+        <LevelUpOverlay level={engineRef.current.player.level} choices={levelUpOptions} onChoose={handleChooseUpgrade} />
       )}
       {phase === 'playing' && paused && engineRef.current && pauseView === 'settings' && (
         <SettingsOverlay settings={settings} onChange={handleSettingsChange} onBack={() => setPauseView('inventory')} />
