@@ -1,0 +1,140 @@
+.levelup-overlay {
+  z-index: 30;
+  background: rgba(5, 4, 10, 0.94);
+  justify-content: center;
+  padding: 22px;
+}
+
+.levelup-burst {
+  font-size: 28px;
+  line-height: 1;
+  animation: levelup-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.levelup-kicker {
+  margin: 7px 0 0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  opacity: 0.75;
+}
+
+.levelup-title {
+  margin: 2px 0 0;
+  font-size: clamp(28px, 7vw, 46px);
+}
+
+.levelup-subtitle {
+  margin: 0 0 16px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.upgrade-grid {
+  width: min(900px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.upgrade-card {
+  min-height: 190px;
+  padding: 16px 12px 12px;
+  border: 2px solid #40366b;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(38, 29, 76, 0.95), rgba(17, 13, 35, 0.98));
+  color: #f5f2ff;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.upgrade-card:hover,
+.upgrade-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: #ffe66d;
+  background: linear-gradient(180deg, rgba(57, 45, 104, 0.98), rgba(22, 17, 43, 0.98));
+  outline: none;
+}
+
+.upgrade-card:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.upgrade-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 10px;
+  border: 2px solid #6c5da8;
+  border-radius: 8px;
+  background: rgba(124, 227, 255, 0.08);
+  font-size: 23px;
+}
+
+.upgrade-name {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.upgrade-description {
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffe66d;
+}
+
+.upgrade-detail {
+  margin-top: 7px;
+  min-height: 30px;
+  font-size: 9px;
+  line-height: 1.35;
+  opacity: 0.7;
+}
+
+.upgrade-pick {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  opacity: 0.8;
+}
+
+.levelup-hint {
+  margin: 13px 0 0;
+  font-size: 9px;
+  opacity: 0.5;
+}
+
+@keyframes levelup-pulse {
+  from { transform: scale(0.9) rotate(-5deg); opacity: 0.65; }
+  to { transform: scale(1.1) rotate(5deg); opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  .levelup-overlay { padding: 14px; }
+  .upgrade-grid { gap: 7px; }
+  .upgrade-card { min-height: 165px; padding: 11px 7px 9px; border-width: 1.5px; }
+  .upgrade-icon { width: 36px; height: 36px; margin-bottom: 7px; font-size: 18px; }
+  .upgrade-name { font-size: 10px; }
+  .upgrade-description { margin-top: 5px; font-size: 9px; }
+  .upgrade-detail { margin-top: 5px; font-size: 7px; min-height: 27px; }
+  .upgrade-pick { padding-top: 8px; font-size: 7px; }
+  .levelup-subtitle { margin-bottom: 10px; }
+}
+
+@media (max-width: 360px) {
+  .levelup-overlay { padding: 10px 7px; }
+  .upgrade-card { min-height: 150px; }
+  .upgrade-icon { width: 31px; height: 31px; font-size: 15px; }
+  .upgrade-name { font-size: 9px; }
+  .upgrade-description { font-size: 8px; }
+  .upgrade-detail { font-size: 6.5px; }
+}
