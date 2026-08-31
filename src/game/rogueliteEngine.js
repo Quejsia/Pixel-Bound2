@@ -26,6 +26,11 @@ function pickChoices(count = 3) {
 export class RogueliteGameEngine extends AudioPhaseGameEngine {
   constructor(options) {
     super(options)
+    // GameEngine does not retain arbitrary callbacks, so explicitly retain the
+    // level-up callback used by this derived engine. Without this, _presentLevelUp
+    // stops the simulation but the UI never receives the three choices.
+    this.onLevelUp = options?.onLevelUp
+
     this.player.critDamageMultiplier = 1
     this.player.critChanceBonus = 0
     this.player.upgradeDefenseBonus = 0
@@ -95,6 +100,10 @@ export class RogueliteGameEngine extends AudioPhaseGameEngine {
 
   getUpgradeSummary() {
     return { ...this.upgradeCounts }
+  }
+
+  getUpgradeChoices() {
+    return this.currentUpgradeChoices ? this.currentUpgradeChoices.map((choice) => ({ ...choice })) : null
   }
 }
 
