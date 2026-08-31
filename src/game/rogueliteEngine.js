@@ -3,7 +3,7 @@ import { audioManager } from './audioManager.js'
 
 // Run-only upgrades. They stack during a run and reset when a new run starts.
 const UPGRADES = [
-  { id: 'rapid-fire', icon: '⚡', name: 'Rapid Fire', description: 'Fire rate +15%', short: 'Shoot 15% faster.', apply: (e) => { e.player.shootInterval = Math.max(0.06, e.player.shootInterval * 0.85) } },
+  { id: 'rapid-fire', icon: '⚡', name: 'Rapid Fire', description: 'Fire rate +15%', short: 'Shoot 15% faster.', apply: (e) => { e.fireRateMultiplier *= 0.85; e.player.shootInterval = Math.max(0.06, e.player.shootInterval * 0.85) } },
   { id: 'magnet', icon: '🧲', name: 'Magnetic Core', description: 'Pickup range +50%', short: 'Pull XP, gold and loot from farther away.', apply: (e) => { e.magnetRadius *= 1.5 } },
   { id: 'attack', icon: '⚔', name: 'Power Surge', description: 'Attack +15%', short: 'Increase weapon and skill damage.', apply: (e) => { e.player.baseAttackMultiplier *= 1.15; e._recalcStats() } },
   { id: 'crit-damage', icon: '💥', name: 'Deadly Precision', description: 'Crit damage +25%', short: 'Critical hits deal 25% more damage.', apply: (e) => { e.player.critDamageMultiplier *= 1.25 } },
@@ -29,10 +29,17 @@ export class RogueliteGameEngine extends AudioPhaseGameEngine {
     this.player.critDamageMultiplier = 1
     this.player.critChanceBonus = 0
     this.player.upgradeDefenseBonus = 0
+    this.fireRateMultiplier = 1
     this.upgradeCounts = {}
     this.pendingLevelUps = 0
     this.awaitingUpgrade = false
     this.currentUpgradeChoices = null
+
+    const originalSetWeapon = this.setWeapon.bind(this)
+    this.setWeapon = (weapon) => {
+      originalSetWeapon(weapon)
+      this.player.shootInterval = Math.max(0.06, this.player.shootInterval * this.fireRateMultiplier)
+    }
   }
 
   // Replaces the old automatic +HP/+attack level reward with a choice queue.
