@@ -1,0 +1,86 @@
+.settings-overlay {
+  gap: 14px;
+}
+
+.settings-list {
+  width: min(92vw, 560px);
+  max-height: 58dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 4px;
+}
+
+.settings-row,
+.settings-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 14px;
+  border: 1px solid rgba(124, 227, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(8, 7, 18, 0.78);
+  color: #eaeaff;
+  font-family: inherit;
+  text-align: left;
+}
+
+.settings-row strong,
+.settings-toggle strong {
+  display: block;
+  font-size: 12px;
+}
+
+.settings-row span,
+.settings-toggle small {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  opacity: 0.65;
+}
+
+.settings-toggle {
+  cursor: pointer;
+}
+
+.settings-toggle b {
+  min-width: 42px;
+  text-align: center;
+  color: #7ce3ff;
+  font-size: 10px;
+}
+
+.range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 145px;
+}
+
+.range-wrap input {
+  width: 110px;
+  accent-color: #7ce3ff;
+}
+
+.range-wrap b {
+  min-width: 30px;
+  font-size: 10px;
+  color: #7ce3ff;
+}
+
+@media (max-width: 520px) {
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .range-wrap {
+    width: 100%;
+  }
+
+  .range-wrap input {
+    flex: 1;
+  }
+}
