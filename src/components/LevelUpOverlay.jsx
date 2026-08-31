@@ -1,3 +1,5 @@
+import './LevelUpOverlay.css'
+
 export default function LevelUpOverlay({ level, choices, onChoose }) {
   return (
     <div className="overlay levelup-overlay" role="dialog" aria-modal="true" aria-labelledby="levelup-title">
