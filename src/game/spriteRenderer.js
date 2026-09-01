@@ -1,20 +1,21 @@
-import { SpriteAnimator, SPRITE_MANIFESTS, getDirection8, resolveSpriteProfile } from './spriteAnimator.js'
+import { SpriteAnimator, SPRITE_MANIFESTS, getDirection8 } from './spriteAnimator.js'
 
 const sourceImages = {}
 const renderImages = new Map()
 const animators = new WeakMap()
 const times = new WeakMap()
 
-// The supplied PNGs are visual sprite/contact sheets: the character art is centered
-// inside measured regions rather than aligned to the outer image's nominal grid.
-// Build a cleaned canvas containing only those measured regions so the checkerboard
-// never appears in-game and each animation frame contains the whole character.
+// The uploaded art is arranged on exact 8x8 atlas grids:
+// player/archer = 1024x1024 / 128px cells
+// enemies = 1536x1536 / 192px cells.
+// Clean each native cell so the checkerboard never renders as part of a character.
 function removeCheckerboard(image, manifest) {
-  const profile = resolveSpriteProfile(manifest, image)
-  if (!image?.naturalWidth || !profile?.xCenters?.length || !profile?.yCenters?.length) return image
+  if (!image?.naturalWidth || !manifest?.frameWidth || !manifest?.frameHeight) return image
 
-  const frameW = profile.sourceFrameWidth
-  const frameH = profile.sourceFrameHeight
+  const frameW = manifest.frameWidth
+  const frameH = manifest.frameHeight
+  const cols = Math.max(1, Math.floor(image.naturalWidth / frameW))
+  const rows = Math.max(1, Math.floor(image.naturalHeight / frameH))
   const canvas = document.createElement('canvas')
   canvas.width = image.naturalWidth
   canvas.height = image.naturalHeight
@@ -24,18 +25,20 @@ function removeCheckerboard(image, manifest) {
 
   const full = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const data = full.data
+
   const isChecker = (di) => {
-    if (data[di + 3] === 0) return true
+    const a = data[di + 3]
+    if (a === 0) return true
     const r = data[di], g = data[di + 1], b = data[di + 2]
-    return Math.max(r, g, b) - Math.min(r, g, b) <= 6 && r >= 75 && r <= 220
+    // Background squares are neutral gray. Keep colored artwork and pure black/white details.
+    return Math.max(r, g, b) - Math.min(r, g, b) <= 5 && r >= 75 && r <= 215
   }
 
-  const clearRegion = (cx, cy) => {
-    const x0 = Math.max(0, Math.round(cx - frameW / 2))
-    const y0 = Math.max(0, Math.round(cy - frameH / 2))
+  const clearCell = (cellX, cellY) => {
+    const x0 = cellX * frameW
+    const y0 = cellY * frameH
     const x1 = Math.min(canvas.width, x0 + frameW)
     const y1 = Math.min(canvas.height, y0 + frameH)
-    if (x1 <= x0 || y1 <= y0) return
     const w = x1 - x0
     const h = y1 - y0
     const seen = new Uint8Array(w * h)
@@ -44,37 +47,33 @@ function removeCheckerboard(image, manifest) {
     let tail = 0
 
     const push = (x, y) => {
-      const lx = x - x0
-      const ly = y - y0
-      if (lx < 0 || ly < 0 || lx >= w || ly >= h) return
-      const p = ly * w + lx
+      if (x < 0 || y < 0 || x >= w || y >= h) return
+      const p = y * w + x
       if (seen[p]) return
-      const di = ((y * canvas.width) + x) * 4
+      const di = (((y0 + y) * canvas.width) + (x0 + x)) * 4
       if (!isChecker(di)) return
       seen[p] = 1
       queue[tail++] = p
     }
 
-    for (let x = x0; x < x1; x++) { push(x, y0); push(x, y1 - 1) }
-    for (let y = y0; y < y1; y++) { push(x0, y); push(x1 - 1, y) }
+    for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1) }
+    for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y) }
 
     while (head < tail) {
       const p = queue[head++]
-      const lx = p % w
-      const ly = (p / w) | 0
-      const x = x0 + lx
-      const y = y0 + ly
-      const di = ((y * canvas.width) + x) * 4
+      const x = p % w
+      const y = (p / w) | 0
+      const di = (((y0 + y) * canvas.width) + (x0 + x)) * 4
       data[di + 3] = 0
-      if (lx > 0) push(x - 1, y)
-      if (lx + 1 < w) push(x + 1, y)
-      if (ly > 0) push(x, y - 1)
-      if (ly + 1 < h) push(x, y + 1)
+      push(x - 1, y)
+      push(x + 1, y)
+      push(x, y - 1)
+      push(x, y + 1)
     }
   }
 
-  for (const cy of profile.yCenters) {
-    for (const cx of profile.xCenters) clearRegion(cx, cy)
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) clearCell(col, row)
   }
 
   ctx.putImageData(full, 0, 0)
@@ -88,8 +87,7 @@ for (const [key, manifest] of Object.entries(SPRITE_MANIFESTS)) {
   const src = new URL(manifest.src, document.baseURI).href
   image.onload = () => {
     try {
-      const processed = removeCheckerboard(image, manifest)
-      renderImages.set(key, processed)
+      renderImages.set(key, removeCheckerboard(image, manifest))
     } catch (error) {
       console.error(`[Pixel-Bound] Sprite preprocessing failed for ${key}`, error)
       renderImages.set(key, image)
@@ -132,7 +130,9 @@ export function drawPlayerSprite(ctx, player, engine, now = performance.now()) {
   const animator = animatorFor(player, 'player')
   if (!animator) return false
   updateAnimator(animator, player, state, player.facing?.x || 0, player.facing?.y || 1, now)
-  animator.draw(ctx, player.x, player.y, { scale: animator.manifest.renderScale || 0.29 })
+
+  const bob = moving && state === 'walk' ? Math.sin(now * 0.018) * 1.2 : 0
+  animator.draw(ctx, player.x, player.y, { scale: animator.manifest.renderScale || 0.34, bob })
   return true
 }
 
@@ -148,6 +148,8 @@ export function drawEnemySprite(ctx, enemy, player, now = performance.now()) {
   else if (enemy.type === 'archer' && enemy.shootCooldown > enemy.shootInterval * 0.72) state = 'attack'
   else if ((enemy.type === 'goblin' || enemy.type === 'skeleton') && distance < enemy.radius + player.radius + 8) state = 'attack'
   updateAnimator(animator, enemy, state, dx, dy, now)
-  animator.draw(ctx, enemy.x, enemy.y + (enemy.bob || 0), { scale: animator.manifest.renderScale || 0.21 })
+
+  const bob = state === 'walk' ? Math.sin(now * 0.016 + enemy.x * 0.02) * (enemy.type === 'slime' ? 1.1 : 0.7) : 0
+  animator.draw(ctx, enemy.x, enemy.y, { scale: animator.manifest.renderScale || 0.22, bob })
   return true
 }
