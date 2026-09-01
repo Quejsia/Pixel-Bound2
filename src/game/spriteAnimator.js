@@ -1,6 +1,7 @@
 // Pixel-Bound sprite animation core.
-// Sheets use 8 directions across 8 columns. Most enemy sheets are 1536x1536 (192px cells);
-// the player/archer sheets are 1024x1024 (128px cells).
+// The supplied art is arranged as a contact-sheet style atlas rather than perfectly
+// aligned to the nominal 128/192 cell grid. We use measured frame centers so the
+// renderer captures the full character instead of pieces of neighboring frames.
 export const DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
 export function getDirection8(dx, dy) {
@@ -10,79 +11,66 @@ export function getDirection8(dx, dy) {
   return ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'][idx]
 }
 
-function clip({ mode = 'directional', rows = [0], row = 0, frameCount, fps = 8, loop = true }) {
-  return { mode, rows, row, frameCount: frameCount ?? rows.length, fps, loop }
+const PLAYER_1024 = {
+  sourceFrameWidth: 112,
+  sourceFrameHeight: 112,
+  xCenters: [137, 250, 359, 459, 562, 663, 769, 878],
+  yCenters: [72, 217, 357, 508, 650, 799, 960],
+  animations: {
+    idle: { rows: [0], fps: 5 },
+    walk: { rows: [1], fps: 10 },
+    attack: { rows: [2], fps: 12, loop: false },
+    dodge: { rows: [3], fps: 12, loop: false },
+    hurt: { rows: [5], fps: 10, loop: false },
+    death: { mode: 'sequential', row: 6, frameCount: 8, fps: 10, loop: false },
+  },
 }
+
+const SHEET_1536 = {
+  sourceFrameWidth: 156,
+  sourceFrameHeight: 166,
+  xCenters: [210, 371, 532, 688, 844, 999, 1155, 1313],
+  yCenters: [108, 325, 542, 737, 968, 1185, 1450],
+}
+
+const makeEnemy = (src, kind) => ({
+  ...SHEET_1536,
+  src,
+  animations: {
+    idle: { rows: [0], fps: 5 },
+    walk: { rows: [1, 2, 3], fps: 10 },
+    attack: { rows: [4], fps: 12, loop: false },
+    hurt: { rows: [5], fps: 10, loop: false },
+    death: { mode: 'sequential', row: 6, frameCount: 8, fps: 10, loop: false },
+  },
+  renderScale: kind === 'slime' ? 0.23 : 0.21,
+})
 
 export const SPRITE_MANIFESTS = {
   player: {
-    src: '/sprite/player.png', frameWidth: 128, frameHeight: 128,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1], fps: 8 }),
-      attack: clip({ rows: [2], fps: 10, loop: false }),
-      dodge: clip({ rows: [3, 4], fps: 10, loop: false }),
-      hurt: clip({ rows: [5, 6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
+    src: '/sprite/player.png',
+    frameWidth: 128,
+    frameHeight: 128,
+    dynamicProfiles: [PLAYER_1024, { ...SHEET_1536, animations: PLAYER_1024.animations }],
+    animations: PLAYER_1024.animations,
+    renderScale: 0.29,
   },
-  goblin: {
-    src: '/sprite/goblin.png', frameWidth: 192, frameHeight: 192,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1, 2], fps: 9 }),
-      attack: clip({ rows: [3], fps: 10, loop: false }),
-      hurt: clip({ rows: [6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
-  },
-  slime: {
-    src: '/sprite/slime.png', frameWidth: 192, frameHeight: 192,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1, 2], fps: 8 }),
-      attack: clip({ rows: [3], fps: 9, loop: false }),
-      hurt: clip({ rows: [5, 6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
-  },
-  skeleton: {
-    src: '/sprite/skeleton.png', frameWidth: 192, frameHeight: 192,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1, 2, 3], fps: 9 }),
-      attack: clip({ rows: [4], fps: 10, loop: false }),
-      hurt: clip({ rows: [5, 6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
-  },
-  archer: {
-    src: '/sprite/archer.png', frameWidth: 128, frameHeight: 128,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1, 2, 3], fps: 9 }),
-      attack: clip({ rows: [4], fps: 10, loop: false }),
-      hurt: clip({ rows: [5, 6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
-  },
-  playerSwordsman: {
-    src: '/sprite/player_swordsman.png', frameWidth: 128, frameHeight: 128,
-    animations: {
-      idle: clip({ rows: [0], fps: 4 }),
-      walk: clip({ rows: [1, 2], fps: 8 }),
-      attack: clip({ rows: [3], fps: 10, loop: false }),
-      block: clip({ rows: [4], fps: 7, loop: false }),
-      hurt: clip({ rows: [5, 6], fps: 8, loop: false }),
-      death: clip({ mode: 'sequential', row: 7, frameCount: 8, fps: 9, loop: false }),
-    },
-  },
+  goblin: makeEnemy('/sprite/goblin.png', 'goblin'),
+  slime: makeEnemy('/sprite/slime.png', 'slime'),
+  skeleton: makeEnemy('/sprite/skeleton.png', 'skeleton'),
+  archer: makeEnemy('/sprite/archer.png', 'archer'),
+}
+
+export function resolveSpriteProfile(manifest, image) {
+  if (!manifest?.dynamicProfiles) return manifest
+  const profile = image?.naturalWidth >= 1400 ? manifest.dynamicProfiles[1] : manifest.dynamicProfiles[0]
+  return { ...manifest, ...profile }
 }
 
 export class SpriteAnimator {
   constructor(image, manifest) {
     this.image = image
-    this.manifest = manifest
+    this.manifest = resolveSpriteProfile(manifest, image)
     this.direction = 'S'
     this.animName = 'idle'
     this.frameIndex = 0
@@ -90,9 +78,12 @@ export class SpriteAnimator {
     this.finished = false
   }
 
-  play(name, { restart = false } = {}) {
-    if (!this.manifest.animations[name]) return
-    if (this.animName === name && !restart) return
+  refreshManifest() { this.manifest = resolveSpriteProfile(this.manifest, this.image) }
+
+  play(name) {
+    const clip = this.manifest.animations?.[name]
+    if (!clip) return
+    if (this.animName === name && !this.finished) return
     this.animName = name
     this.frameIndex = 0
     this.elapsed = 0
@@ -102,48 +93,49 @@ export class SpriteAnimator {
   setDirection(dir) { if (dir) this.direction = dir }
 
   update(dtMs) {
-    const c = this.manifest.animations[this.animName]
+    const c = this.manifest.animations?.[this.animName]
     if (!c || this.finished) return
-    this.elapsed += Math.max(0, Math.min(dtMs, 100))
-    const frameDuration = 1000 / Math.max(1, c.fps)
+    this.elapsed += Math.max(0, Math.min(dtMs, 80))
+    const frameDuration = 1000 / Math.max(1, c.fps || 8)
     while (this.elapsed >= frameDuration) {
       this.elapsed -= frameDuration
       const count = c.mode === 'sequential' ? c.frameCount : c.rows.length
-      const next = this.frameIndex + 1
-      if (next >= count) {
-        if (c.loop) this.frameIndex = 0
-        else {
-          this.frameIndex = Math.max(0, count - 1)
-          this.finished = true
-        }
-      } else this.frameIndex = next
+      if (this.frameIndex + 1 >= count) {
+        if (c.loop !== false) this.frameIndex = 0
+        else { this.frameIndex = Math.max(0, count - 1); this.finished = true }
+      } else this.frameIndex += 1
       if (this.finished) break
     }
   }
 
-  currentCell() {
-    const c = this.manifest.animations[this.animName]
-    if (!c) return { row: 0, col: 0 }
-    if (c.mode === 'sequential') return { row: c.row, col: this.frameIndex }
-    return { row: c.rows[this.frameIndex] ?? c.rows[0], col: Math.max(0, DIRECTIONS.indexOf(this.direction)) }
+  currentSourceRect() {
+    const c = this.manifest.animations?.[this.animName]
+    if (!c) return null
+    const row = c.mode === 'sequential' ? c.row : (c.rows[this.frameIndex] ?? c.rows[0])
+    const col = c.mode === 'sequential' ? this.frameIndex : Math.max(0, DIRECTIONS.indexOf(this.direction))
+    const xCenters = this.manifest.xCenters || []
+    const yCenters = this.manifest.yCenters || []
+    if (!xCenters.length || !yCenters.length) {
+      return { x: col * this.manifest.frameWidth, y: row * this.manifest.frameHeight, w: this.manifest.frameWidth, h: this.manifest.frameHeight }
+    }
+    const cx = xCenters[Math.min(col, xCenters.length - 1)]
+    const cy = yCenters[Math.min(row, yCenters.length - 1)]
+    return {
+      x: Math.max(0, Math.round(cx - this.manifest.sourceFrameWidth / 2)),
+      y: Math.max(0, Math.round(cy - this.manifest.sourceFrameHeight / 2)),
+      w: this.manifest.sourceFrameWidth,
+      h: this.manifest.sourceFrameHeight,
+    }
   }
 
   draw(ctx, x, y, { scale = 1 } = {}) {
-    const { frameWidth, frameHeight } = this.manifest
-    const { row, col } = this.currentCell()
+    const rect = this.currentSourceRect()
+    if (!rect) return
     ctx.save()
     ctx.imageSmoothingEnabled = false
-    ctx.drawImage(
-      this.image,
-      col * frameWidth,
-      row * frameHeight,
-      frameWidth,
-      frameHeight,
-      x - (frameWidth * scale) / 2,
-      y - (frameHeight * scale) / 2,
-      frameWidth * scale,
-      frameHeight * scale,
-    )
+    const dw = rect.w * scale
+    const dh = rect.h * scale
+    ctx.drawImage(this.image, rect.x, rect.y, rect.w, rect.h, x - dw / 2, y - dh / 2, dw, dh)
     ctx.restore()
   }
 }
