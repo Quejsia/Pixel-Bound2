@@ -63,7 +63,8 @@ export const SPRITE_MANIFESTS = {
 
 export function resolveSpriteProfile(manifest, image) {
   if (!manifest?.dynamicProfiles) return manifest
-  const profile = image?.naturalWidth >= 1400 ? manifest.dynamicProfiles[1] : manifest.dynamicProfiles[0]
+  const width = image?.naturalWidth || image?.width || 0
+  const profile = width >= 1400 ? manifest.dynamicProfiles[1] : manifest.dynamicProfiles[0]
   return { ...manifest, ...profile }
 }
 
@@ -77,8 +78,6 @@ export class SpriteAnimator {
     this.elapsed = 0
     this.finished = false
   }
-
-  refreshManifest() { this.manifest = resolveSpriteProfile(this.manifest, this.image) }
 
   play(name) {
     const clip = this.manifest.animations?.[name]
@@ -128,14 +127,21 @@ export class SpriteAnimator {
     }
   }
 
-  draw(ctx, x, y, { scale = 1 } = {}) {
+  draw(ctx, x, y, { scale = 1, bob = 0, flipX = false } = {}) {
     const rect = this.currentSourceRect()
     if (!rect) return
     ctx.save()
     ctx.imageSmoothingEnabled = false
+    if (bob) y += bob
     const dw = rect.w * scale
     const dh = rect.h * scale
-    ctx.drawImage(this.image, rect.x, rect.y, rect.w, rect.h, x - dw / 2, y - dh / 2, dw, dh)
+    if (flipX) {
+      ctx.translate(Math.round(x), Math.round(y))
+      ctx.scale(-1, 1)
+      ctx.drawImage(this.image, rect.x, rect.y, rect.w, rect.h, -dw / 2, -dh / 2, dw, dh)
+    } else {
+      ctx.drawImage(this.image, rect.x, rect.y, rect.w, rect.h, x - dw / 2, y - dh / 2, dw, dh)
+    }
     ctx.restore()
   }
 }
