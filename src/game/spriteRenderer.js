@@ -1,18 +1,12 @@
 import { SpriteAnimator, SPRITE_MANIFESTS, getDirection8 } from './spriteAnimator.js'
 
-const sourceImages = Object.fromEntries(Object.entries(SPRITE_MANIFESTS).map(([key, manifest]) => {
-  const image = new Image()
-  image.decoding = 'async'
-  image.src = manifest.src
-  return [key, image]
-}))
-
+const sourceImages = {}
 const renderImages = new Map()
 const animators = new WeakMap()
 const times = new WeakMap()
 
-// The supplied sheets can contain a gray checkerboard where transparency should be.
-// Remove only border-connected neutral-gray pixels so gray skeleton bones/details survive.
+// Some supplied enemy sheets are RGB PNGs with a checkerboard baked into the image.
+// Player/archer are already transparent. Enemy sheets are cleaned once, after load.
 function removeCheckerboard(image, manifest) {
   if (!image?.naturalWidth || !manifest?.frameWidth || !manifest?.frameHeight) return null
 
@@ -29,7 +23,7 @@ function removeCheckerboard(image, manifest) {
 
   const full = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const data = full.data
-  const isBg = (di) => {
+  const bg = (di) => {
     if (data[di + 3] === 0) return true
     const r = data[di], g = data[di + 1], b = data[di + 2]
     return Math.max(r, g, b) - Math.min(r, g, b) <= 4 && r >= 85 && r <= 215
@@ -37,38 +31,28 @@ function removeCheckerboard(image, manifest) {
 
   for (let fy = 0; fy < rows; fy++) {
     for (let fx = 0; fx < cols; fx++) {
-      const x0 = fx * frameW
-      const y0 = fy * frameH
-      const x1 = Math.min(canvas.width, x0 + frameW)
-      const y1 = Math.min(canvas.height, y0 + frameH)
-      const width = x1 - x0
-      const height = y1 - y0
+      const x0 = fx * frameW, y0 = fy * frameH
+      const x1 = Math.min(canvas.width, x0 + frameW), y1 = Math.min(canvas.height, y0 + frameH)
+      const width = x1 - x0, height = y1 - y0
       const seen = new Uint8Array(width * height)
       const queue = new Int32Array(width * height)
-      let head = 0
-      let tail = 0
-
+      let head = 0, tail = 0
       const push = (x, y) => {
-        const lx = x - x0
-        const ly = y - y0
+        const lx = x - x0, ly = y - y0
         if (lx < 0 || ly < 0 || lx >= width || ly >= height) return
         const p = ly * width + lx
         if (seen[p]) return
         const di = ((y * canvas.width) + x) * 4
-        if (!isBg(di)) return
+        if (!bg(di)) return
         seen[p] = 1
         queue[tail++] = p
       }
-
       for (let x = x0; x < x1; x++) { push(x, y0); push(x, y1 - 1) }
       for (let y = y0; y < y1; y++) { push(x0, y); push(x1 - 1, y) }
-
       while (head < tail) {
         const p = queue[head++]
-        const lx = p % width
-        const ly = (p / width) | 0
-        const x = x0 + lx
-        const y = y0 + ly
+        const lx = p % width, ly = (p / width) | 0
+        const x = x0 + lx, y = y0 + ly
         const di = ((y * canvas.width) + x) * 4
         data[di + 3] = 0
         if (lx > 0) push(x - 1, y)
@@ -78,25 +62,34 @@ function removeCheckerboard(image, manifest) {
       }
     }
   }
-
   ctx.putImageData(full, 0, 0)
   return canvas
 }
 
-function getRenderableImage(key) {
-  if (renderImages.has(key)) return renderImages.get(key)
-  const source = sourceImages[key]
-  const manifest = SPRITE_MANIFESTS[key]
-  if (!source?.complete || !source.naturalWidth) return null
-  const processed = removeCheckerboard(source, manifest)
-  if (!processed) return null
-  renderImages.set(key, processed)
-  return processed
+for (const [key, manifest] of Object.entries(SPRITE_MANIFESTS)) {
+  const image = new Image()
+  image.decoding = 'async'
+  image.loading = 'eager'
+  const src = new URL(manifest.src, document.baseURI).href
+  image.onload = () => {
+    try {
+      const processed = ['goblin', 'slime', 'skeleton'].includes(key)
+        ? removeCheckerboard(image, manifest)
+        : image
+      if (processed) renderImages.set(key, processed)
+    } catch (error) {
+      console.error(`[Pixel-Bound] Sprite preprocessing failed for ${key}`, error)
+      renderImages.set(key, image)
+    }
+  }
+  image.onerror = () => console.error(`[Pixel-Bound] Failed to load sprite: ${src}`)
+  image.src = src
+  sourceImages[key] = image
 }
 
 function animatorFor(entity, key) {
   const manifest = SPRITE_MANIFESTS[key]
-  const image = getRenderableImage(key)
+  const image = renderImages.get(key)
   if (!entity || !manifest || !image) return null
   if (!animators.has(entity)) {
     animators.set(entity, new SpriteAnimator(image, manifest))
@@ -142,6 +135,6 @@ export function drawEnemySprite(ctx, enemy, player, now = performance.now()) {
   else if (enemy.type === 'archer' && enemy.shootCooldown > enemy.shootInterval * 0.72) state = 'attack'
   else if ((enemy.type === 'goblin' || enemy.type === 'skeleton') && distance < enemy.radius + player.radius + 8) state = 'attack'
   updateAnimator(animator, enemy, state, dx, dy, now)
-  animator.draw(ctx, enemy.x, enemy.y + (enemy.bob || 0), { scale: enemy.type === 'slime' ? 0.20 : 0.18 })
+  animator.draw(ctx, enemy.x, enemy.y + (enemy.bob || 0), { scale: enemy.type === 'slime' ? 0.16 : 0.18 })
   return true
 }
