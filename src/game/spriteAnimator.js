@@ -1,129 +1,98 @@
-// Pixel-Bound sprite atlas definitions and frame selection.
-// All currently uploaded sheets are 1536x1536: 8 direction columns x 8 rows,
-// so every native cell is 192x192. The final row(s) that are blank/unused are
-// never selected by the animation profiles below.
+import { SPRITE_DIRECTIONS, loadSpriteSheet, getLoadedSpriteSheet } from './spriteLoader.js'
 
-export const DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+// Sprite animation profiles.
+// The loader derives frameWidth/frameHeight from the real sheet dimensions:
+// frameWidth = sheetWidth / 8
+// frameHeight = sheetHeight / atlasRows
+//
+// This is important for Pixel-Bound because the current uploaded PNGs are
+// 1536x1536 (192px cells), while a 1024x1024 replacement would naturally be
+// 128px cells. No runtime code has to change when the art is replaced.
+export const DIRECTIONS = SPRITE_DIRECTIONS
 const DIRECTION_INDEX = Object.fromEntries(DIRECTIONS.map((name, index) => [name, index]))
 
 export function getDirection8(dx, dy) {
   if (Math.abs(dx) + Math.abs(dy) < 0.001) return null
   const angle = Math.atan2(dy, dx)
-  const index = Math.round(angle / (Math.PI / 4))
-  const wrapped = ((index % 8) + 8) % 8
-  // The supplied art uses N, NE, E, SE, S, SW, W, NW by column.
-  return DIRECTIONS[(wrapped + 2) % 8]
+  const octant = Math.round(angle / (Math.PI / 4))
+  return DIRECTIONS[((octant + 2) % 8 + 8) % 8]
 }
 
-const COMMON = { frameWidth: 192, frameHeight: 192, columns: 8, rows: 8 }
+const clip = (rows, fps = 8, loop = true) => ({ rows, fps, loop })
 
-// Row inventory is based on visual inspection of the supplied sprite atlases.
-// Warrior: idle(0), walk(1), attack poses(2-4), hurt(5), death(6), row 7 unused.
-// Skeleton/archer: idle(0), walk cycle(1-3), attack(4), hurt/recovery(5-6), death(7).
-// Goblin: idle(0), walk cycle(1-2), attack(3), hurt(4), death(5).
-// Slime: idle(0), walk cycle(1-2), attack(3), hurt(4), death(5).
-const PLAYER_WARRIOR = {
-  ...COMMON,
-  src: '/sprite/player.png',
-  renderScale: 0.42,
-  animations: {
-    idle: { rows: [0], fps: 4, loop: true },
-    walk: { rows: [1], fps: 9, loop: true },
-    attack: { rows: [2, 3, 4], fps: 12, loop: false },
-    // The supplied warrior atlas has no clearly dedicated roll row; use a
-    // short directional movement sequence rather than falling back to vectors.
-    dodge: { rows: [1, 2, 1], fps: 14, loop: false },
-    hurt: { rows: [5], fps: 10, loop: false },
-    death: { rows: [6], fps: 8, loop: false },
-  },
-}
-
-const GOBLIN = {
-  ...COMMON,
-  src: '/sprite/goblin.png',
-  renderScale: 0.31,
-  animations: {
-    idle: { rows: [0], fps: 4, loop: true },
-    walk: { rows: [1, 2], fps: 8, loop: true },
-    attack: { rows: [3], fps: 12, loop: false },
-    hurt: { rows: [4], fps: 10, loop: false },
-    death: { rows: [5], fps: 9, loop: false },
-  },
-}
-
-const SKELETON = {
-  ...COMMON,
-  src: '/sprite/skeleton.png',
-  renderScale: 0.30,
-  animations: {
-    idle: { rows: [0], fps: 4, loop: true },
-    walk: { rows: [1, 2, 3], fps: 9, loop: true },
-    attack: { rows: [4], fps: 12, loop: false },
-    hurt: { rows: [5, 6], fps: 10, loop: false },
-    death: { rows: [7], fps: 9, loop: false },
-  },
-}
-
-const SLIME = {
-  ...COMMON,
-  src: '/sprite/slime.png',
-  renderScale: 0.30,
-  animations: {
-    idle: { rows: [0], fps: 4, loop: true },
-    walk: { rows: [1, 2], fps: 10, loop: true },
-    attack: { rows: [3], fps: 12, loop: false },
-    hurt: { rows: [4], fps: 12, loop: false },
-    death: { rows: [5], fps: 10, loop: false },
-  },
-}
-
-const ARCHER = {
-  ...COMMON,
-  src: '/sprite/archer.png',
-  renderScale: 0.30,
-  animations: {
-    idle: { rows: [0], fps: 4, loop: true },
-    walk: { rows: [1, 2, 3], fps: 9, loop: true },
-    attack: { rows: [4], fps: 12, loop: false },
-    hurt: { rows: [5, 6], fps: 10, loop: false },
-    death: { rows: [7], fps: 9, loop: false },
-  },
-}
+// All currently uploaded sheets are eight-column atlases. The final physical
+// row may be unused on sheets that have fewer logical animation states.
+const BASE = (src, animations, renderScale = 0.22) => ({
+  src,
+  columns: 8,
+  atlasRows: 8,
+  animations,
+  renderScale,
+})
 
 export const SPRITE_MANIFESTS = {
-  player: PLAYER_WARRIOR,
-  goblin: GOBLIN,
-  skeleton: SKELETON,
-  slime: SLIME,
-  archer: ARCHER,
+  // Current player.png is the warrior sheet. Logical states use rows 0-6;
+  // physical row 7 is intentionally unused.
+  player: BASE('/sprite/player.png', {
+    idle: clip([0], 4),
+    walk: clip([1, 2, 3], 9),
+    attack: clip([4], 12, false),
+    dodge: clip([1, 2, 1], 14, false),
+    hurt: clip([5], 10, false),
+    death: clip([6], 9, false),
+  }, 0.23),
+
+  goblin: BASE('/sprite/goblin.png', {
+    idle: clip([0], 4),
+    walk: clip([1, 2], 9),
+    attack: clip([3], 12, false),
+    hurt: clip([4], 10, false),
+    death: clip([5], 9, false),
+  }, 0.22),
+
+  skeleton: BASE('/sprite/skeleton.png', {
+    idle: clip([0], 4),
+    walk: clip([1, 2, 3], 9),
+    attack: clip([4], 12, false),
+    hurt: clip([5, 6], 10, false),
+    death: clip([7], 9, false),
+  }, 0.22),
+
+  slime: BASE('/sprite/slime.png', {
+    idle: clip([0], 4),
+    walk: clip([1, 2], 10),
+    attack: clip([3], 12, false),
+    hurt: clip([4], 12, false),
+    death: clip([5], 10, false),
+  }, 0.22),
+
+  // archer.png is currently used by the existing Archer enemy. Its atlas is
+  // also compatible with the same eight-direction, row-based system.
+  archer: BASE('/sprite/archer.png', {
+    idle: clip([0], 4),
+    walk: clip([1, 2, 3], 9),
+    attack: clip([4], 12, false),
+    hurt: clip([5], 10, false),
+    death: clip([6], 9, false),
+  }, 0.22),
 }
 
-export function resolveSpriteProfile(manifest) {
-  return manifest
-}
-
-export function getAnimationFrameRows(manifest, state) {
+export function getAnimationRows(manifest, state) {
   return manifest?.animations?.[state]?.rows || manifest?.animations?.idle?.rows || [0]
 }
 
-export function getFrameRect(manifest, state, direction, frameIndex = 0) {
-  const clip = manifest?.animations?.[state] || manifest?.animations?.idle
-  if (!clip) return null
-  const rows = clip.rows || [0]
-  const row = rows[Math.max(0, Math.min(rows.length - 1, frameIndex))]
+export function getFrameCell(manifest, state, direction, frameIndex = 0) {
+  const animation = manifest?.animations?.[state] || manifest?.animations?.idle
+  if (!animation) return { row: 0, col: DIRECTION_INDEX.S }
+  const row = animation.rows[Math.max(0, Math.min(animation.rows.length - 1, frameIndex))] ?? animation.rows[0] ?? 0
   const col = DIRECTION_INDEX[direction] ?? DIRECTION_INDEX.S
-  return {
-    x: col * manifest.frameWidth,
-    y: row * manifest.frameHeight,
-    w: manifest.frameWidth,
-    h: manifest.frameHeight,
-  }
+  return { row, col }
 }
 
 export class SpriteAnimator {
-  constructor(image, manifest) {
-    this.image = image
-    this.manifest = manifest
+  constructor(sheet) {
+    this.sheet = sheet
+    this.manifest = sheet.manifest
     this.direction = 'S'
     this.state = 'idle'
     this.frameIndex = 0
@@ -131,9 +100,9 @@ export class SpriteAnimator {
     this.finished = false
   }
 
-  play(state) {
+  play(state, { restart = false } = {}) {
     const next = this.manifest.animations?.[state] ? state : 'idle'
-    if (this.state === next && !this.finished) return false
+    if (this.state === next && !this.finished && !restart) return false
     this.state = next
     this.frameIndex = 0
     this.elapsed = 0
@@ -146,45 +115,76 @@ export class SpriteAnimator {
   }
 
   update(dtMs) {
-    const clip = this.manifest.animations?.[this.state]
-    if (!clip || this.finished) return
-    const fps = Math.max(1, clip.fps || 8)
-    const frameDuration = 1000 / fps
+    const animation = this.manifest.animations?.[this.state]
+    if (!animation || this.finished) return
+
+    const frameDuration = 1000 / Math.max(1, animation.fps || 8)
     this.elapsed += Math.max(0, Math.min(dtMs, 100))
 
     while (this.elapsed >= frameDuration) {
       this.elapsed -= frameDuration
-      const count = Math.max(1, clip.rows?.length || 1)
-      if (this.frameIndex + 1 >= count) {
-        if (clip.loop !== false) this.frameIndex = 0
+      const count = Math.max(1, animation.rows?.length || 1)
+      const next = this.frameIndex + 1
+
+      if (next >= count) {
+        if (animation.loop !== false) this.frameIndex = 0
         else {
           this.frameIndex = count - 1
           this.finished = true
         }
       } else {
-        this.frameIndex += 1
+        this.frameIndex = next
       }
+
+      if (this.finished) break
     }
   }
 
-  currentSourceRect() {
-    return getFrameRect(this.manifest, this.state, this.direction, this.frameIndex)
+  getFrame() {
+    const { row, col } = getFrameCell(this.manifest, this.state, this.direction, this.frameIndex)
+    return this.sheet.frames[row]?.[col] || this.sheet.frames[0]?.[DIRECTION_INDEX.S] || null
   }
 
-  draw(ctx, x, y, { scale = 1, bob = 0, alpha = 1 } = {}) {
-    if (!this.image) return false
-    const rect = this.currentSourceRect()
-    if (!rect) return false
+  draw(ctx, x, y, { scale = this.manifest.renderScale || 0.22, bob = 0, alpha = 1 } = {}) {
+    const frame = this.getFrame()
+    if (!frame) return false
 
-    const dw = rect.w * scale
-    const dh = rect.h * scale
+    const width = this.manifest.frameWidth * scale
+    const height = this.manifest.frameHeight * scale
+
     ctx.save()
     ctx.imageSmoothingEnabled = false
     ctx.globalAlpha = alpha
-    // Entity x/y remain the logical gameplay/collision anchor; sprite size never
-    // changes the existing hitbox or collision calculations.
-    ctx.drawImage(this.image, rect.x, rect.y, rect.w, rect.h, x - dw / 2, y - dh / 2 + bob, dw, dh)
+    // x/y are the entity's logical gameplay anchor. The sprite dimensions do
+    // not participate in collision or hitbox calculations.
+    ctx.drawImage(frame, Math.round(x - width / 2), Math.round(y - height / 2 + bob), width, height)
     ctx.restore()
     return true
   }
+}
+
+const loading = new Map()
+
+async function loadForKey(key) {
+  if (!SPRITE_MANIFESTS[key]) return null
+  if (!loading.has(key)) loading.set(key, loadSpriteSheet(key, SPRITE_MANIFESTS[key]))
+  return loading.get(key)
+}
+
+export async function preloadSprites() {
+  await Promise.all(Object.keys(SPRITE_MANIFESTS).map(loadForKey))
+}
+
+export function getSpriteLoadState() {
+  const result = {}
+  for (const key of Object.keys(SPRITE_MANIFESTS)) {
+    result[key] = getLoadedSpriteSheet(key) ? 'ready' : loading.has(key) ? 'loading' : 'idle'
+  }
+  return result
+}
+
+export async function getOrCreateSpriteAnimator(entity, key) {
+  if (!entity || !SPRITE_MANIFESTS[key]) return null
+  const sheet = await loadForKey(key)
+  return sheet ? new SpriteAnimator(await sheet) : null
 }
