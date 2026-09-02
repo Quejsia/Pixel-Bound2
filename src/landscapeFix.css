@@ -1,0 +1,42 @@
+/* Mobile landscape / short-viewport UX fixes. Keeps long overlays scrollable without making the game canvas scroll. */
+.start-overlay,
+.inventory-overlay,
+.settings-overlay {
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: flex-start;
+  padding-top: max(18px, env(safe-area-inset-top, 10px));
+  padding-bottom: max(28px, env(safe-area-inset-bottom, 10px));
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.start-overlay > *,
+.inventory-overlay > *,
+.settings-overlay > * {
+  flex-shrink: 0;
+}
+
+@media (orientation: landscape) and (max-height: 650px) {
+  .start-overlay {
+    gap: 8px;
+    padding: 14px 16px 36px;
+  }
+
+  .start-overlay .title { font-size: 20px; }
+  .start-overlay .inventory-title { margin-bottom: 0; }
+  .start-overlay .inventory-subheading,
+  .start-overlay .blacksmith-subheading { margin: 6px 0 4px; }
+  .start-overlay .inventory-list { max-width: 620px; }
+  .start-overlay .inventory-item { padding: 6px 9px; }
+  .start-overlay .overlay-btn-row { padding-top: 4px; padding-bottom: 8px; }
+
+  .settings-overlay {
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 14px 16px 36px;
+  }
+}
