@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { VIRTUAL_W, VIRTUAL_H } from '../game/engine.js'
 import { RogueliteGameEngine } from '../game/rogueliteEngine.js'
 import { render } from '../game/renderer.js'
+import { preloadSprites } from '../game/spriteAnimator.js'
 import { audioManager } from '../game/audioManager.js'
 import { loadSave, saveGame, updateSettings, recordRun } from '../game/saveSystem.js'
 import Joystick from './Joystick.jsx'
@@ -86,7 +87,12 @@ export default function GameCanvas() {
     rafRef.current = requestAnimationFrame(loop)
   }, [])
 
-  const beginGame = useCallback(() => {
+  const beginGame = useCallback(async () => {
+    // Do not start the simulation until all character atlases are decoded and
+    // sliced. This removes the visible primitive/vector fallback during the
+    // first seconds of a run and guarantees every current enemy sheet is ready.
+    await preloadSprites()
+
     audioManager.unlock()
     audioManager.setSfxVolume(saveData.settings.sfxVolume)
     audioManager.setBgmVolume(saveData.settings.bgmVolume)
@@ -187,7 +193,7 @@ export default function GameCanvas() {
     if (!result.ok) return
     setLevelUpChoices(engine.awaitingUpgrade ? engine.getUpgradeChoices() : null)
   }, [])
-  const handleRestart = useCallback(() => { engineRef.current?.stop(); engineRef.current = null; setLevelUpChoices(null); beginGame() }, [beginGame])
+  const handleRestart = useCallback(() => { engineRef.current?.stop(); engineRef.current = null; setLevelUpChoices(null); void beginGame() }, [beginGame])
   const handlePause = useCallback(() => { if (levelUpChoices) return; engineRef.current?.stop(); setPaused(true); setSettingsOpen(false); setLoadoutOpen(false) }, [levelUpChoices])
   const handleResume = useCallback(() => { engineRef.current?.start(); setPaused(false); setSettingsOpen(false); setLoadoutOpen(false) }, [])
   const handleQuitToMenu = useCallback(() => { engineRef.current?.stop(); engineRef.current = null; audioManager.stopBgm(); setPaused(false); setSettingsOpen(false); setLoadoutOpen(false); setLevelUpChoices(null); setPhase('start') }, [])
