@@ -74,15 +74,8 @@ export function render(ctx, engine) {
     }
   }
 
-  for (const b of engine.bullets) drawProjectileFx(ctx, b, engine.player.weapon)
-  ctx.fillStyle = PALETTE.bullet
-  for (const b of engine.bullets) ctx.fillRect(Math.round(b.x) - 1, Math.round(b.y) - 1, 3, 3)
-
-  ctx.fillStyle = PALETTE.enemyArrow
-  for (const b of engine.enemyBullets) {
-    ctx.save(); ctx.translate(Math.round(b.x), Math.round(b.y)); ctx.rotate(Math.atan2(b.vy, b.vx))
-    ctx.fillRect(-2.5, -0.75, 5, 1.5); ctx.restore()
-  }
+  for (const b of engine.bullets) drawProjectile(ctx, b, engine.player.weapon, false)
+  for (const b of engine.enemyBullets) drawProjectile(ctx, b, 'enemy', true)
 
   if (!drawPlayerSprite(ctx, engine.player, engine, performance.now())) drawPlayer(ctx, engine.player)
 
@@ -106,7 +99,34 @@ function drawAtlasCell(ctx, cell, x, y, scale = 1, alpha = 1, rotation = 0) {
   ctx.drawImage(atlasImage, sx, 0, VFX_CELL, VFX_CELL, -size / 2, -size / 2, size, size)
   ctx.restore()
 }
-function drawProjectileFx(ctx, bullet, weapon) { const cell = PROJECTILE_CELL[weapon] ?? 4; drawAtlasCell(ctx, cell, bullet.x, bullet.y, 0.28, 0.75, Math.atan2(bullet.vy, bullet.vx)) }
+
+function drawProjectile(ctx, bullet, weapon, enemy) {
+  const angle = Math.atan2(bullet.vy, bullet.vx)
+  const speed = Math.hypot(bullet.vx, bullet.vy)
+  const length = enemy ? 4.5 : weapon === 'shotgun' ? 5.5 : weapon === 'rifle' ? 6.5 : 5
+  const width = enemy ? 1.5 : weapon === 'staff' ? 2.4 : 1.8
+  const tail = Math.min(6, speed * 0.035)
+
+  // Bright pixel trail guarantees projectiles remain visible even if the VFX
+  // atlas is unavailable or still decoding.
+  ctx.save()
+  ctx.translate(Math.round(bullet.x), Math.round(bullet.y))
+  ctx.rotate(angle)
+  ctx.globalAlpha = 0.4
+  ctx.fillStyle = enemy ? PALETTE.enemyArrow : PALETTE.bullet
+  ctx.fillRect(-tail, -width / 2, tail, width)
+  ctx.globalAlpha = 1
+  ctx.fillRect(0, -width / 2 - 0.3, length, width + 0.6)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(1, -Math.max(0.6, width / 3), Math.max(1.5, length * 0.42), Math.max(1, width * 0.66))
+  ctx.restore()
+
+  if (!enemy && weapon !== 'enemy') {
+    const cell = PROJECTILE_CELL[weapon] ?? 4
+    drawAtlasCell(ctx, cell, bullet.x, bullet.y, 0.22, 0.5, angle)
+  }
+}
+
 function drawPhase15Vfx(ctx, engine) {
   if (!engine.__phase15VfxEnabled || !engine.__phase15Vfx) return
   for (const fx of engine.__phase15Vfx) { const cell = VFX_INDEX[fx.type]; if (cell === undefined) continue; const progress = Math.max(0, fx.life / fx.maxLife); const pulse = 1 + Math.sin((1 - progress) * Math.PI) * 0.12; drawAtlasCell(ctx, cell, fx.x, fx.y, fx.scale * pulse, Math.min(1, progress * 1.8), fx.rotation) }
