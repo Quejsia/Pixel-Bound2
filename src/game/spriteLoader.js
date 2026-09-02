@@ -24,7 +24,6 @@ function isCheckerCandidate(r, g, b) {
 
 // The supplied PNGs contain a gray checkerboard baked into the image. We only
 // remove checkerboard-colored pixels that are connected to the cell boundary.
-// This preserves gray bones, outlines, armor, etc. inside the sprite.
 function cleanFrame(frame) {
   const ctx = frame.getContext('2d', { willReadFrequently: true })
   if (!ctx) return frame
@@ -104,14 +103,15 @@ function cleanFrame(frame) {
 
 function resolveGrid(image, manifest) {
   const frameWidth = image.naturalWidth / DIRECTION_COUNT
-  const preferredRows = manifest.atlasRows || manifest.rows
-  const preferredHeight = preferredRows ? image.naturalHeight / preferredRows : frameWidth
+  const declaredRows = manifest.atlasRows || manifest.rows
+  const preferredHeight = declaredRows ? image.naturalHeight / declaredRows : frameWidth
 
-  // Prefer the explicit layout when it divides cleanly. Otherwise use the
-  // native square cell size (the current 1536x1536 uploads are 192px cells)
-  // and use the requested animation rows from the top of the sheet.
-  if (Number.isInteger(frameWidth) && Number.isInteger(preferredHeight)) {
-    return { frameWidth, frameHeight: preferredHeight, atlasRows: preferredRows }
+  // Use the declared layout only when it is square. This matches the user's
+  // 128x128 / 192x192 frame layouts. If an older 1536x1536 atlas is present
+  // with only six or seven logical animation rows, its actual native cell is
+  // still 192x192 and the extra physical rows simply remain unused.
+  if (Number.isInteger(frameWidth) && Number.isInteger(preferredHeight) && preferredHeight === frameWidth) {
+    return { frameWidth, frameHeight: preferredHeight, atlasRows: declaredRows }
   }
 
   const nativeRows = Math.floor(image.naturalHeight / frameWidth)
@@ -173,9 +173,13 @@ export function loadSpriteSheet(key, manifest) {
           resolve(null)
           return
         }
-
         const grid = resolveGrid(image, manifest)
-        const resolvedManifest = { ...manifest, frameWidth: grid.frameWidth, frameHeight: grid.frameHeight, atlasRows: grid.atlasRows }
+        const resolvedManifest = {
+          ...manifest,
+          frameWidth: grid.frameWidth,
+          frameHeight: grid.frameHeight,
+          atlasRows: grid.atlasRows,
+        }
         const frames = sliceAtlas(image, manifest, grid)
         const result = { image, frames, manifest: resolvedManifest }
         loadedSheets.set(key, result)
