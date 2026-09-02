@@ -45,6 +45,12 @@ export const SPRITE_MANIFESTS = {
   archer: { ...ENEMY('/sprite/archer.png', 'archer'), renderScale: 0.22 },
 }
 
+// Kept as a public helper for spriteRenderer and future atlas-specific render logic.
+// Current manifests use native cell grids, so no alternate profile is required.
+export function resolveSpriteProfile(manifest) {
+  return manifest
+}
+
 export class SpriteAnimator {
   constructor(image, manifest) {
     this.image = image
