@@ -1,4 +1,5 @@
 const SAVE_KEY = 'pixel-bound-save-v2'
+const LEGACY_SAVE_KEY = 'pixel-bound-save-v1'
 
 export const WEAPON_ORDER = ['pistol', 'shotgun', 'rifle', 'bow', 'staff']
 export const WEAPON_COSTS = { shotgun: 120, rifle: 200, bow: 280, staff: 400 }
@@ -22,15 +23,24 @@ function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULT_SAVE)) }
 export function loadSave() {
   if (typeof window === 'undefined') return cloneDefaults()
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY)
+    let raw = window.localStorage.getItem(SAVE_KEY)
+    let migrated = false
+    if (!raw) {
+      raw = window.localStorage.getItem(LEGACY_SAVE_KEY)
+      migrated = Boolean(raw)
+    }
     if (!raw) return cloneDefaults()
     const parsed = JSON.parse(raw)
-    return {
+    const next = {
       ...cloneDefaults(),
       ...parsed,
       unlockedWeapons: Array.isArray(parsed.unlockedWeapons) && parsed.unlockedWeapons.length ? parsed.unlockedWeapons : ['pistol'],
       settings: { ...DEFAULT_SAVE.settings, ...(parsed.settings || {}) },
     }
+    if (migrated) {
+      try { window.localStorage.setItem(SAVE_KEY, JSON.stringify(next)) } catch { /* migration may be unavailable */ }
+    }
+    return next
   } catch {
     return cloneDefaults()
   }
