@@ -265,6 +265,62 @@ class Skeleton {
   }
 }
 
+
+class Brute {
+  constructor(x, y, wave) {
+    this.type = 'brute'
+    this.x = x
+    this.y = y
+    this.radius = 9
+    this.maxHp = 220 + wave * 35
+    this.hp = this.maxHp
+    this.speed = 10 + Math.min(wave * 0.8, 12)
+    this.contactDamage = 18 + Math.floor(wave * 1.2)
+    this.hitFlash = 0
+    this.contactCooldown = 0
+    this.attackCooldown = 1.8
+    this.attackTelegraph = 0
+    this.attackRadius = 34
+    this.attackDamage = 22 + wave * 1.5
+    this.facing = 1
+    this.bob = 0
+    this.dead = false
+  }
+
+  update(dt, player) {
+    const d = dist(this.x, this.y, player.x, player.y) || 0.001
+    const nx = (player.x - this.x) / d
+    const ny = (player.y - this.y) / d
+    this.facing = nx >= 0 ? 1 : -1
+
+    if (this.attackTelegraph > 0) {
+      this.attackTelegraph -= dt
+      if (this.attackTelegraph <= 0) {
+        if (dist(this.x, this.y, player.x, player.y) < this.attackRadius + player.radius && player.invulnerable <= 0) {
+          player.hp -= this.attackDamage * (1 - player.defense)
+          player.hitFlash = 0.25
+          player.x = clamp(player.x + nx * 7, ARENA_PAD, VIRTUAL_W - ARENA_PAD)
+          player.y = clamp(player.y + ny * 7, ARENA_PAD, VIRTUAL_H - ARENA_PAD)
+        }
+      }
+    } else {
+      if (d > 18) {
+        this.x += nx * this.speed * dt
+        this.y += ny * this.speed * dt
+      }
+      this.attackCooldown -= dt
+      if (this.attackCooldown <= 0) {
+        this.attackCooldown = 3.4
+        this.attackTelegraph = 0.75
+      }
+    }
+
+    if (this.hitFlash > 0) this.hitFlash -= dt
+    if (this.contactCooldown > 0) this.contactCooldown -= dt
+    this.bob = Math.sin(performance.now() / 160 + this.x) * 0.8
+  }
+}
+
 class Archer {
   constructor(x, y, wave) {
     this.type = 'archer'
@@ -363,6 +419,7 @@ export class GameEngine {
 
     this.wave = 1
     this.enemiesToSpawn = 0
+    this.bossSpawned = false
     this.spawnTimer = 0
     this.waveClearDelay = 0
     this.score = 0
@@ -385,6 +442,7 @@ export class GameEngine {
     this.enemiesToSpawn = 4 + this.wave * 3
     this.spawnTimer = 0
     this.waveClearDelay = 0
+    this.bossSpawned = false
   }
 
   setMove(x, y) {
@@ -482,6 +540,19 @@ export class GameEngine {
   }
 
   _spawnEnemy() {
+    // Every 5th wave opens with a Brute mini-boss.
+    if (this.wave % 5 === 0 && !this.bossSpawned) {
+      this.bossSpawned = true
+      const side = Math.floor(Math.random() * 4)
+      let x, y
+      if (side === 0) { x = -10; y = Math.random() * VIRTUAL_H }
+      else if (side === 1) { x = VIRTUAL_W + 10; y = Math.random() * VIRTUAL_H }
+      else if (side === 2) { x = Math.random() * VIRTUAL_W; y = -10 }
+      else { x = Math.random() * VIRTUAL_W; y = VIRTUAL_H + 10 }
+      this.enemies.push(new Brute(x, y, this.wave))
+      return
+    }
+
     // Spawn just outside the visible arena edge, random side
     const side = Math.floor(Math.random() * 4)
     let x, y
@@ -755,8 +826,17 @@ export class GameEngine {
 
   _dropLoot(x, y, enemyType) {
     // Always drop XP
-    const xpAmount = enemyType === 'goblin' ? 4 : 3
+    const xpAmount = enemyType === 'brute' ? 20 : enemyType === 'goblin' ? 4 : 3
     this.pickups.push(new Pickup(x, y, 'xp', xpAmount))
+
+    // Mini-bosses guarantee a meaningful reward.
+    if (enemyType === 'brute') {
+      this.pickups.push(new Pickup(x + 2, y, 'gold', 15 + Math.floor(Math.random() * 11)))
+      const rarity = Math.random() < 0.2 ? 'epic' : 'rare'
+      const slot = SLOTS[Math.floor(Math.random() * SLOTS.length)]
+      this.pickups.push(new Pickup(x - 2, y, 'item', makeItem(rarity, slot)))
+      return
+    }
 
     // Chance for gold
     if (Math.random() < 0.5) {
