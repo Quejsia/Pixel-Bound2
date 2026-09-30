@@ -13,11 +13,11 @@ const makeManifest = (src, rows, animations, renderScale) => ({
 
 const clip = (rows, fps, loop = true) => ({ rows, fps, loop })
 
-// The requested layout is used when the PNG dimensions match it. The loader
+// The sprite sheet layout is generated as 8 directional columns with animation rows. The loader
 // falls back to the native square cell height when an older 1536x1536 atlas is
 // supplied, while keeping these logical animation rows unchanged.
 export const SPRITE_MANIFESTS = {
-  player: makeManifest('/sprite/player.png', 7, {
+  player: makeManifest('/sprite/player.svg', 7, {
     idle: clip([0], 4),
     walk: clip([1, 2, 3], 10),
     attack: clip([4], 12, false),
@@ -25,28 +25,28 @@ export const SPRITE_MANIFESTS = {
     hurt: clip([5], 10, false),
     death: clip([6], 10, false),
   }, 0.30),
-  archer: makeManifest('/sprite/archer.png', 7, {
+  archer: makeManifest('/sprite/archer.svg', 7, {
     idle: clip([0], 4),
     walk: clip([1, 2, 3], 10),
     attack: clip([4], 12, false),
     hurt: clip([5], 10, false),
     death: clip([6], 10, false),
   }, 0.30),
-  goblin: makeManifest('/sprite/goblin.png', 6, {
+  goblin: makeManifest('/sprite/goblin.svg', 6, {
     idle: clip([0], 4),
     walk: clip([1, 2], 9),
     attack: clip([3], 12, false),
     hurt: clip([4], 10, false),
     death: clip([5], 10, false),
   }, 0.27),
-  skeleton: makeManifest('/sprite/skeleton.png', 6, {
+  skeleton: makeManifest('/sprite/skeleton.svg', 6, {
     idle: clip([0], 4),
     walk: clip([1, 2], 9),
     attack: clip([3], 12, false),
     hurt: clip([4], 10, false),
     death: clip([5], 10, false),
   }, 0.27),
-  slime: makeManifest('/sprite/slime.png', 6, {
+  slime: makeManifest('/sprite/slime.svg', 6, {
     idle: clip([0], 5),
     walk: clip([1, 2], 10),
     attack: clip([3], 12, false),
