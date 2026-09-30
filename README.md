@@ -6,7 +6,8 @@ A 2D pixel-art top-down shooter built with React + Canvas, designed for web and 
 - Virtual joystick movement (touch + mouse)
 - Auto-aim (fires at nearest enemy) or manual twin-stick aiming — toggle from the start screen or Settings
 - Dodge roll with cooldown + brief invulnerability
-- Four enemy types: slime, goblin, skeleton and archer
+- Four regular enemy types: slime, goblin, skeleton and archer
+- **Brute mini-boss:** appears on every 5th wave with a telegraphed slam attack and guaranteed high-rarity loot
 - Escalating waves, HP/score/wave HUD
 - Five weapons: pistol, shotgun, rifle, bow and staff
 - Burn, poison, bleed, freeze and stun status effects
@@ -63,6 +64,7 @@ npx cap add ios
 - Audio + screen-shake toggle (Step 1)
 - Persistent settings and local run stats
 - **Rogue-lite 3-choice level-up upgrades (Step 2)**
+- **Brute mini-boss encounter milestone**
 
 ### Next
 1. PC mouse-look aiming
