@@ -67,8 +67,7 @@ npx cap add ios
 ### Next
 1. PC mouse-look aiming
 2. Tilemap + camera + biome/stage progression
-3. Boss/miniboss encounters
-4. Audio asset pass and final mobile polish
+3. Audio asset pass and final mobile polish
 
 ## Step 2 upgrade pool
 | Upgrade | Effect |
