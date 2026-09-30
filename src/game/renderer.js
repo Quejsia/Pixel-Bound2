@@ -52,8 +52,12 @@ export function render(ctx, engine) {
     if (e.type === 'goblin') drawGoblin(ctx, e)
     else if (e.type === 'skeleton') drawSkeleton(ctx, e)
     else if (e.type === 'archer') drawArcher(ctx, e)
+    else if (e.type === 'brute') drawBrute(ctx, e)
     else drawSlime(ctx, e)
   }
+
+  const boss = engine.enemies.find((e) => e.type === 'brute')
+  if (boss) drawBossBar(ctx, boss) 
 
   for (const b of engine.bullets) {
     drawProjectileFx(ctx, b, engine.player.weapon)
@@ -107,6 +111,61 @@ function drawPhase15Vfx(ctx, engine) {
     const pulse = 1 + Math.sin((1 - progress) * Math.PI) * 0.12
     drawAtlasCell(ctx, cell, fx.x, fx.y, fx.scale * pulse, Math.min(1, progress * 1.8), fx.rotation)
   }
+}
+
+
+function drawBrute(ctx, e) {
+  const r = e.radius
+  const pulse = e.attackTelegraph > 0 ? 1 + Math.sin(performance.now() / 55) * 0.16 : 1
+  ctx.save()
+  ctx.translate(Math.round(e.x), Math.round(e.y + e.bob))
+  ctx.scale(e.facing, 1)
+
+  if (e.attackTelegraph > 0) {
+    ctx.globalAlpha = 0.35
+    ctx.strokeStyle = '#ff5c7a'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(0, 0, e.attackRadius * pulse, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
+  ctx.fillStyle = e.hitFlash > 0 ? PALETTE.slimeHit : '#d34f6b'
+  ctx.fillRect(-r * 0.85, -r * 0.8, r * 1.7, r * 1.7)
+  ctx.fillStyle = '#8f2942'
+  ctx.fillRect(-r * 0.55, r * 0.35, r * 1.1, r * 0.5)
+  ctx.fillStyle = '#ffd166'
+  ctx.fillRect(-r * 0.45, -r * 0.9, 3, 2)
+  ctx.fillRect(r * 0.15, -r * 0.9, 3, 2)
+  ctx.strokeStyle = '#6f2034'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(-r * 0.9, -r * 0.2)
+  ctx.lineTo(-r * 1.25, -r * 0.6)
+  ctx.moveTo(r * 0.9, -r * 0.2)
+  ctx.lineTo(r * 1.25, -r * 0.6)
+  ctx.stroke()
+  ctx.restore()
+
+  drawEnemyHp(ctx, e, r, 8)
+}
+
+function drawBossBar(ctx, boss) {
+  const width = 180
+  const x = (VIRTUAL_W - width) / 2
+  const y = 6
+  ctx.fillStyle = '#0a0714'
+  ctx.fillRect(x - 2, y - 2, width + 4, 10)
+  ctx.fillStyle = '#3a1724'
+  ctx.fillRect(x, y, width, 6)
+  ctx.fillStyle = '#d34f6b'
+  ctx.fillRect(x, y, width * Math.max(0, boss.hp / boss.maxHp), 6)
+  ctx.fillStyle = '#fff'
+  ctx.font = 'bold 5px monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText('BRUTE  •  MINI-BOSS', VIRTUAL_W / 2, y + 5)
+  ctx.textAlign = 'start'
 }
 
 function drawSlime(ctx, e) {
