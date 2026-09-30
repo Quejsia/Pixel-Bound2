@@ -16,7 +16,7 @@ const STAT_LABELS = {
   speed: (v) => `+${v} SPD`,
 }
 
-export default function InventoryOverlay({ stats, inventory, equipment, shop, onResume, onClose, onOpenSettings, onEquip, onUnequip, onForge, onBuyShopItem }) {
+export default function InventoryOverlay({ stats, inventory, equipment, shop, onResume, onClose, onOpenSettings, onOpenLoadout, onEquip, onUnequip, onForge, onBuyShopItem }) {
   const [tab, setTab] = useState('items')
   const [showTip, setShowTip] = useState(true)
   const [forgeMsg, setForgeMsg] = useState(null)
@@ -143,6 +143,7 @@ export default function InventoryOverlay({ stats, inventory, equipment, shop, on
 
       <div className="overlay-btn-row">
         <button className="btn-primary" onClick={onResume}>RESUME</button>
+        <button className="btn-secondary" onClick={onOpenLoadout}>LOADOUT</button>
         <button className="btn-secondary" onClick={onOpenSettings}>SETTINGS</button>
         <button className="btn-secondary" onClick={onClose}>QUIT TO MENU</button>
       </div>
